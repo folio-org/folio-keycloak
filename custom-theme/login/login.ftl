@@ -41,13 +41,13 @@
 
                 <div class="${properties.kcFormGroupClass!} ${properties.kcFormSettingClass!}">
                     <div id="kc-form-options">
-                    <#if realm.resetPasswordAllowed>
-                        <span><a tabindex="5" href="${client.baseUrl}/forgot-password">${msg("doForgotPassword")}</a></span>
+                        <#if realm.resetPasswordAllowed>
+                            <span><a tabindex="5" href="${client.baseUrl}/forgot-password">${msg("doForgotPassword")}</a></span>
                         </#if>
-                        </div>
-                        <div class="${properties.kcFormOptionsWrapperClass!}">
-                                <span><a tabindex="6" href="${client.baseUrl}/forgot-username">${msg("doForgotUsername")}</a></span>
-                        </div>
+                    </div>
+                    <div class="${properties.kcFormOptionsWrapperClass!}">
+                        <span><a tabindex="6" href="${client.baseUrl}/forgot-username">${msg("doForgotUsername")}</a></span>
+                    </div>
 
                   </div>
 
@@ -55,6 +55,8 @@
                       <input type="hidden" id="id-hidden-input" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
                       <input tabindex="4" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
                   </div>
+
+                  <a href="${client.baseUrl}" class="${properties.kcReturnToTenantSelection}">${msg("backToTenantSelection")}</a>
             </form>
         </#if>
         </div>

@@ -94,3 +94,10 @@ input:focus {
     height: 60px;
     background-color: #1960a4 !important;
 }
+
+.return-to-tenant-selection {
+  display: block;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1rem;
+}
