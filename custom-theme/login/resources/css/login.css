@@ -96,7 +96,6 @@ input:focus {
 }
 
 .return-to-tenant-selection {
-  display: block;
   text-align: center;
   font-weight: bold;
   font-size: 1rem;

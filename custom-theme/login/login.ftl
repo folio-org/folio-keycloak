@@ -55,8 +55,15 @@
                       <input type="hidden" id="id-hidden-input" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
                       <input tabindex="4" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
                   </div>
+                  <a href="${client.baseUrl}" id="return-to-tenant-selection" style="display: none;" class="${properties.kcReturnToTenantSelection}">${msg("backToTenantSelection")}</a>
+                  <script type="text/javascript">
+                      const urlParams = new URLSearchParams(window.location.search);
+                      const isConsortium = urlParams.get('isConsortium');
 
-                  <a href="${client.baseUrl}" class="${properties.kcReturnToTenantSelection}">${msg("backToTenantSelection")}</a>
+                      if (isConsortium === 'true') {
+                          document.getElementById('return-to-tenant-selection').style.display = 'block';
+                      }
+                  </script>
             </form>
         </#if>
         </div>
