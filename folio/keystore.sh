@@ -9,8 +9,8 @@ keystore=/opt/keycloak/conf/server.keystore
 
 function generateKeystore() {
   if test -f "$keystore"; then
-    echo "$keystore exists."
-    exit 0
+    echo "Removing existing $keystore"
+    rm $keystore
   fi
   keytool -keystore $keystore \
     -storetype BCFKS \
