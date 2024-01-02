@@ -8,12 +8,14 @@ keypass="${KC_HTTPS_KEY_STORE_PASSWORD}"
 keystore=/opt/keycloak/conf/server.keystore
 
 function generateKeystore() {
-  if checkKeystore; then
-    echo "$(date +%F' '%T,%3N) INFO  [$script] Keystore $keystore exists."
-    return 0;
-  else
-    echo "$(date +%F' '%T,%3N) INFO  [$script] Keystore password is invalid. Re-creating keystore."
-    rm $keystore
+  if test -f "$keystore"; then
+    if checkKeystore; then
+      echo "$(date +%F' '%T,%3N) INFO  [$script] Keystore $keystore exists."
+      return 0;
+    else
+      echo "$(date +%F' '%T,%3N) INFO  [$script] Keystore password is invalid. Re-creating keystore."
+      rm $keystore
+    fi
   fi
 
   keytool -keystore $keystore \
@@ -29,10 +31,6 @@ function generateKeystore() {
 }
 
 function checkKeystore() {
-  if ! test -f "$keystore"; then
-    return 0;
-  fi
-
   keytool -list -keystore $keystore \
     -storetype BCFKS \
     -providername BCFIPS \
