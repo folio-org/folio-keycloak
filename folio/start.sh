@@ -7,6 +7,9 @@ if [[ -z "$KC_FOLIO_BE_ADMIN_CLIENT_SECRET" ]]; then
   exit 1
 fi
 
+# Generate BCFKS keystore
+/opt/keycloak/bin/folio/keystore.sh &
+
 /opt/keycloak/bin/folio/configure-realms.sh &
 
 /opt/keycloak/bin/kc.sh "$@"
