@@ -23,4 +23,4 @@ docker build -t folio-keycloak .
 |:--------------------------------|:--------:|:---------------------------|:----------------------------|
 | KC_FOLIO_BE_ADMIN_CLIENT_ID     |  false   | folio-backend-admin-client | Folio backend client id     |
 | KC_FOLIO_BE_ADMIN_CLIENT_SECRET |   true   | -                          | Folio backend client secret |
-| KC_HTTPS_KEY_STORE_PASSWORD     |  false   | keystoresecret123          | BCFSK Keystore password     |
+| KC_HTTPS_KEY_STORE_PASSWORD     |   true   | -                          | BCFSK Keystore password     |
