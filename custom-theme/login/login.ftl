@@ -42,11 +42,11 @@
                 <div class="${properties.kcFormGroupClass!} ${properties.kcFormSettingClass!}">
                     <div id="kc-form-options">
                         <#if realm.resetPasswordAllowed>
-                            <span><a tabindex="5" href="${client.baseUrl}/forgot-password">${msg("doForgotPassword")}</a></span>
+                            <span><a id="forgot-password" tabindex="5">${msg("doForgotPassword")}</a></span>
                         </#if>
                     </div>
                     <div class="${properties.kcFormOptionsWrapperClass!}">
-                        <span><a tabindex="6" href="${client.baseUrl}/forgot-username">${msg("doForgotUsername")}</a></span>
+                        <span><a id="forgot-username" tabindex="6">${msg("doForgotUsername")}</a></span>
                     </div>
 
                   </div>
@@ -55,13 +55,24 @@
                       <input type="hidden" id="id-hidden-input" name="credentialId" <#if auth.selectedCredential?has_content>value="${auth.selectedCredential}"</#if>/>
                       <input tabindex="4" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
                   </div>
-                  <a href="${client.baseUrl}" id="return-to-tenant-selection" style="display: none;" class="${properties.kcReturnToTenantSelection}">${msg("backToTenantSelection")}</a>
+                  <a id="return-to-tenant-selection" style="display: none;" class="${properties.kcReturnToTenantSelection}">${msg("backToTenantSelection")}</a>
                   <script type="text/javascript">
                       const urlParams = new URLSearchParams(window.location.search);
                       const isConsortium = urlParams.get('isConsortium');
+                      const redirectUri = urlParams.get('redirect_uri');
+                      const baseUrl = redirectUri ? new URL(redirectUri).origin : null;
+                      const returnToTenantSelection = document.getElementById('return-to-tenant-selection');
+                      const forgotUsername = document.getElementById('forgot-username');
+                      const forgotPassword = document.getElementById('forgot-password');
 
-                      if (isConsortium === 'true') {
-                          document.getElementById('return-to-tenant-selection').style.display = 'block';
+                      if (baseUrl) {
+                          if (forgotUsername) forgotUsername.href = baseUrl + '/forgot-username';
+                          if (forgotPassword) forgotPassword.href = baseUrl + '/forgot-password';
+
+                          if (isConsortium === 'true' && returnToTenantSelection) {
+                              returnToTenantSelection.href = baseUrl;
+                              returnToTenantSelection.style.display = 'block';
+                          }
                       }
                   </script>
             </form>
