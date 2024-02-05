@@ -31,7 +31,7 @@ COPY ./libs/folio-scripts.jar /opt/keycloak/providers/
 COPY ./conf/keycloak-fips.keystore.* /opt/keycloak/test/server.keystore
 COPY ./conf/kc.java.security /opt/keycloak/test/kc.java.security
 
-USER root
+USER keycloak
 RUN chmod -R 550 /opt/keycloak/bin/folio
 
 USER 1000
