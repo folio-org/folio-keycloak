@@ -4,9 +4,9 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
 ENV KC_CACHE=ispn
 ENV KC_HEALTH_ENABLED=true
-ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz,fips
-ENV KC_FIPS_MODE=strict
-ENV KC_HTTPS_KEY_STORE_TYPE=BCFKS
+#ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz,fips
+#ENV KC_FIPS_MODE=strict
+#ENV KC_HTTPS_KEY_STORE_TYPE=BCFKS
 
 COPY ./cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn-jdbc.xml
 
