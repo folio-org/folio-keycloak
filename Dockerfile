@@ -25,6 +25,7 @@ RUN mkdir /opt/keycloak/bin/folio
 COPY folio /opt/keycloak/bin/folio
 COPY ./custom-theme /opt/keycloak/themes/custom-theme
 # move all libs for providers
+COPY ./conf/kc.keystore-create.java.security /opt/keycloak/test/kc.keystore-create.java.security
 COPY ./libs/* /opt/keycloak/test/
 COPY ./libs/folio-scripts.jar /opt/keycloak/providers/
 COPY ./conf/keycloak-fips.keystore.* /opt/keycloak/test/server.keystore
