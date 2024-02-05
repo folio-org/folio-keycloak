@@ -25,8 +25,8 @@ RUN mkdir /opt/keycloak/bin/folio
 COPY folio /opt/keycloak/bin/folio
 COPY ./custom-theme /opt/keycloak/themes/custom-theme
 COPY ./libs/* /opt/keycloak/providers/
-COPY ./conf/keycloak-fips.keystore.* /opt/keycloak/conf/server.keystore
-COPY ./conf/kc.java.security /opt/keycloak/conf/kc.java.security
+COPY ./conf/keycloak-fips.keystore.* /opt/keycloak/test/server.keystore
+COPY ./conf/kc.java.security /opt/keycloak/test/kc.java.security
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
