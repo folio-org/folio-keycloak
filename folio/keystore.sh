@@ -27,7 +27,7 @@ function generateKeystore() {
     -alias "$keycloakHost" \
     -genkeypair -sigalg SHA512withRSA -keyalg RSA -storepass "$keypass" \
     -dname CN="$keycloakHost" -keypass "$keypass" \
-    -J-Djava.security.properties=/tmp/kc.keystore-create.java.security
+    -J-Djava.security.properties=/opt/keycloak/conf/kc.keystore-create.java.security
 }
 
 function checkKeystore() {
@@ -38,7 +38,7 @@ function checkKeystore() {
     -provider org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
     -providerpath /opt/keycloak/providers/bc-fips-*.jar \
     -storepass "$keypass" \
-    -J-Djava.security.properties=/tmp/kc.keystore-create.java.security
+    -J-Djava.security.properties=/opt/keycloak/conf/kc.keystore-create.java.security
 }
 
 echo "$(date +%F' '%T,%3N) INFO  [$script] Generating BCFKS keystore for hostname: '$keycloakHost'"
