@@ -13,7 +13,7 @@ COPY ./cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn-jdbc.xml
 ENV KC_CACHE_CONFIG_FILE=cache-ispn-jdbc.xml
 
 COPY ./libs/* /opt/keycloak/providers/
-COPY ./conf/kc.keystore-create.java.security /tmp/kc.keystore-create.java.security
+COPY ./conf/kc.keystore-create.java.security  /opt/keycloak/conf/kc.keystore-create.java.security
 
 RUN /opt/keycloak/bin/kc.sh build
 
@@ -25,7 +25,8 @@ RUN mkdir /opt/keycloak/bin/folio
 COPY folio /opt/keycloak/bin/folio
 COPY ./custom-theme /opt/keycloak/themes/custom-theme
 COPY ./libs/* /opt/keycloak/providers/
-COPY ./conf/keycloak-fips.keystore.* /opt/keycloak/conf/server.keystore
+#COPY ./conf/keycloak-fips.keystore.* /opt/keycloak/conf/server.keystore
+COPY ./conf/kc.keystore-create.java.security /opt/keycloak/conf/kc.keystore-create.java.security
 COPY ./conf/kc.java.security /opt/keycloak/conf/kc.java.security
 
 USER root
