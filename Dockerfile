@@ -31,7 +31,7 @@ COPY ./conf/kc.java.security /opt/keycloak/conf/kc.java.security
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
 
-USER 1000
+#USER 1000
 
 ENTRYPOINT [ "/opt/keycloak/bin/folio/start.sh", "start", \
 "--optimized", "--https-key-store-password=${KC_HTTPS_KEY_STORE_PASSWORD}", \
