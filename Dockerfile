@@ -25,7 +25,6 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 # Install AWS CLI
 COPY --from=awscli --chown=keycloak:keycloak /aws /aws
-RUN /aws/install
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 
@@ -34,6 +33,7 @@ COPY --chown=keycloak:keycloak folio /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak ./custom-theme /opt/keycloak/themes/custom-theme
 
 USER root
+RUN /aws/install
 RUN chmod -R 550 /opt/keycloak/bin/folio
 
 USER keycloak
