@@ -15,7 +15,17 @@ COPY --chown=keycloak:keycloak ./cache-ispn-jdbc.xml /opt/keycloak/conf/cache-is
 
 RUN /opt/keycloak/bin/kc.sh build
 
+# Download and extract AWS CLI
+FROM alpine:latest as awscli
+RUN apk add --no-cache curl unzip
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+RUN unzip awscliv2.zip
+
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
+
+# Install AWS CLI
+COPY --from=awscli --chown=keycloak:keycloak /aws /aws
+RUN /aws/install
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 
