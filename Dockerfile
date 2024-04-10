@@ -1,6 +1,7 @@
 ARG KEYCLOAK_VERSION=23.0.7
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 
+ARG TARGETARCH
 ENV KC_DB=postgres
 ENV KC_CACHE=ispn
 ENV KC_HEALTH_ENABLED=true
