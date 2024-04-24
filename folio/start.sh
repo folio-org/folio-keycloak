@@ -12,7 +12,7 @@ fi
 if [[ "$FIPS" == "true" ]]; then
   echo "Starting in FIPS mode"
   /opt/keycloak/bin/kc.sh start \
-   --optimized --http-enabled=false --https-key-store-type=BCFKS \
+   --optimized --http-enabled=false --https-key-store-type=BCFKS --https-protocols=TLSv1.3,TLSv1.2 --https-port=8080 \
    --https-key-store-file="${KC_HTTPS_KEY_STORE:-/opt/keycloak/conf/test.server.keystore}" --https-key-store-password=${KC_HTTPS_KEY_STORE_PASSWORD:-SecretPassword} \
    --spi-password-hashing-pbkdf2-sha256-max-padding-length=14 \
    --log-level=INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE \
