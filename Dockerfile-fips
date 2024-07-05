@@ -5,10 +5,11 @@ ENV KC_DB=postgres
 ENV KC_CACHE=ispn
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
-ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz
+ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz,fips
+ENV KC_FIPS_MODE=strict
 ENV KC_CACHE_CONFIG_FILE=cache-ispn-jdbc.xml
 
-COPY --chown=keycloak:keycloak ./libs/folio-scripts.jar /opt/keycloak/providers/
+COPY --chown=keycloak:keycloak ./libs/* /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak ./conf/* /opt/keycloak/conf/
 COPY --chown=keycloak:keycloak ./cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn-jdbc.xml
 

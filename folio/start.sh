@@ -18,6 +18,7 @@ if [[ "$FIPS" == "true" ]]; then
    --log-level=INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE \
    -Djava.security.properties=/opt/keycloak/conf/java.security
 else
+  echo "Starting in non FIPS mode"
   /opt/keycloak/bin/kc.sh start \
    --optimized --http-enabled=false --https-key-store-type=BCFKS \
    --https-key-store-file="${KC_HTTPS_KEY_STORE:-/opt/keycloak/conf/test.server.keystore}" --https-key-store-password="${KC_HTTPS_KEY_STORE_PASSWORD:-SecretPassword}" \
