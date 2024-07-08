@@ -20,7 +20,9 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 
 RUN mkdir /opt/keycloak/bin/folio
-COPY --chown=keycloak:keycloak folio /opt/keycloak/bin/folio
+COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/configure-realms.sh
+COPY --chown=keycloak:keycloak folio/setup-admin-client.sh /opt/keycloak/bin/folio/setup-admin-client.sh
+COPY --chown=keycloak:keycloak folio/start-fips.sh /opt/keycloak/bin/folio/start-fips.sh
 COPY --chown=keycloak:keycloak ./custom-theme /opt/keycloak/themes/custom-theme
 
 USER root
@@ -28,4 +30,4 @@ RUN chmod -R 550 /opt/keycloak/bin/folio
 
 USER keycloak
 
-ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
+ENTRYPOINT ["/opt/keycloak/bin/folio/start-fips.sh"]
