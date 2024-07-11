@@ -29,6 +29,7 @@ ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz,fips
 ENV KC_FIPS_MODE=strict
 
 COPY --chown=keycloak:keycloak --from=fipsJarDownloader ./tmp/fips-jars/ /opt/keycloak/providers/
+COPY --chown=keycloak:keycloak ./libs/folio-scripts.jar /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak ./conf/* /opt/keycloak/conf/
 COPY --chown=keycloak:keycloak ./cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn-jdbc.xml
 
