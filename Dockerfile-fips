@@ -23,12 +23,10 @@ RUN apk upgrade --no-cache && apk --no-cache add curl \
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 
 ENV KC_DB=postgres
-ENV KC_CACHE=ispn
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
 ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz,fips
 ENV KC_FIPS_MODE=strict
-ENV KC_CACHE_CONFIG_FILE=cache-ispn-jdbc.xml
 
 COPY --chown=keycloak:keycloak --from=fipsJarDownloader ./tmp/fips-jars/ /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak ./conf/* /opt/keycloak/conf/
