@@ -2,8 +2,6 @@ ARG ALPINE_VERSION=3.20.1
 ARG KEYCLOAK_VERSION=25.0.1
 FROM alpine:$ALPINE_VERSION AS fipsJarDownloader
 
-RUN apk upgrade --no-cache && apk --no-cache add curl
-
 # Set the working directory
 WORKDIR /tmp/fips-jars
 
