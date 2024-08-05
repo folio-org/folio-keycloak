@@ -22,6 +22,7 @@ COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak ./custom-theme /opt/keycloak/themes/custom-theme
+COPY --chown=keycloak:keycloak opentelemetry-javaagent.jar /opt/keycloak/bin
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
