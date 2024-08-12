@@ -1,5 +1,5 @@
 ARG ALPINE_VERSION=3.20.1
-ARG KEYCLOAK_VERSION=25.0.1
+ARG KEYCLOAK_VERSION=23.0.7
 FROM alpine:$ALPINE_VERSION AS fipsJarDownloader
 
 # Set the working directory
