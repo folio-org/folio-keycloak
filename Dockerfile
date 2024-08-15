@@ -24,7 +24,8 @@ COPY --chown=keycloak:keycloak custom-theme-sso-only /opt/keycloak/themes/custom
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
-
+RUN echo "[DEBUG]"
+RUN cat /opt/keycloak/bin/folio/start.sh
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
