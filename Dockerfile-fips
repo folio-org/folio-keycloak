@@ -1,7 +1,5 @@
 ARG ALPINE_VERSION=3.20.1
 ARG KEYCLOAK_VERSION=25.0.1
-
-FROM 579891902283.dkr.ecr.us-east-1.amazonaws.com/folio/java:17 as otel
 ARG OTEL_AGENT_EXTENSION_VERSION
 ENV OTEL_AGENT_EXTENSION_VERSION=${OTEL_AGENT_EXTENSION_VERSION}
 ARG OTEL_AGENT_VERSION
@@ -9,6 +7,7 @@ ENV OTEL_AGENT_VERSION=${OTEL_AGENT_VERSION}
 ARG OTEL_BUCKET_NAME
 ENV OTEL_BUCKET_NAME=${OTEL_BUCKET_NAME}
 
+FROM 579891902283.dkr.ecr.us-east-1.amazonaws.com/folio/java:17 as otel
 
 COPY --chown=folio:folio folio/setup-aws.sh /opt/javaagents/setup-aws.sh
 USER folio
