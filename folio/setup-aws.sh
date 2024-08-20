@@ -1,20 +1,26 @@
 #!/bin/bash
-set -e
 
-# Install AWS CLI
-echo "Installing AWS CLI..."
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
+# Check if OTEL_AGENT_EXTENSION_VERSION and OTEL_BUCKET_NAME environment variables are set
+if [ -n "$OTEL_AGENT_EXTENSION_VERSION" ] && [ -n "$OTEL_AGENT_VERSION" ] && [ -n "$OTEL_BUCKET_NAME" ]; then
+  if [[ "$OTEL_AGENT_EXTENSION_VERSION" == *SNAPSHOT* ]]; then
+    AGENT_EXTENSION_FOLDER="snapshots"
+  else
+    AGENT_EXTENSION_FOLDER="releases"
+  fi
 
-echo "Downloading file from S3..."
-aws s3 cp s3://observability-folio-eis-us-east-1-dev/opentelemetry-javaagent-1.28.0.jar /opt/javaagents/
+  AGENT_EXTENSION_FILE_NAME=$(aws s3 ls s3://$OTEL_BUCKET_NAME/$AGENT_EXTENSION_FOLDER/ | grep "$OTEL_AGENT_EXTENSION_VERSION" | cut -d ' ' -f4)
+  AGENT_FILE_NAME=$(aws s3 ls s3://$OTEL_BUCKET_NAME/ | grep "opentelemetry-javaagent-$OTEL_AGENT_VERSION" | cut -d ' ' -f4)
+  # If agent file found, copy it and add as Javaagent
+  if [ -n "$AGENT_EXTENSION_FILE_NAME" ] && [ -n "$AGENT_FILE_NAME" ]; then
+    AGENT_PATH="/opt/javaagents/$AGENT_FILE_NAME"
+    AGENT_EXTENSION_PATH="/opt/javaagents/$AGENT_EXTENSION_FILE_NAME"
 
-echo "Setting JAVA_OPTS environment variable..."
-export JAVA_OPTS_APPEND="-javaagent:/opt/javaagents/opentelemetry-javaagent-1.28.0.jar"
-echo "JAVA_OPTS set to: $JAVA_OPTS_APPEND"
-
-# Optionally, you can add the environment variable to /etc/environment
-# echo "JAVA_OPTS_APPEND=$JAVA_OPTS_APPEND" | sudo tee -a /etc/environment
-
-echo "AWS CLI installed, file downloaded from S3, and JAVA_OPTS set successfully."
+    aws s3 cp s3://$OTEL_BUCKET_NAME/$AGENT_EXTENSION_FOLDER/$AGENT_EXTENSION_FILE_NAME $AGENT_EXTENSION_PATH
+    aws s3 cp s3://$OTEL_BUCKET_NAME/$AGENT_FILE_NAME $AGENT_PATH
+    JAVA_OPTS_APPEND="-javaagent:$AGENT_PATH -Dotel.javaagent.extensions=$AGENT_EXTENSION_PATH"
+  else
+    echo "Opentelemetry java agent extension $OTEL_AGENT_EXTENSION_VERSION or java agent $OTEL_AGENT_VERSION not found in S3 bucket"
+  fi
+else
+  echo "OTEL_AGENT_EXTENSION_VERSION environment variable is not set"
+fi
