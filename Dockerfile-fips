@@ -47,6 +47,7 @@ COPY --chown=keycloak:keycloak folio/setup-aws.sh /opt/keycloak/bin/folio/setup-
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
 # Setup AWS CLI and download the file from S3
+RUN microdnf install -y curl unzip && microdnf clean all
 RUN /opt/keycloak/bin/folio/setup-aws.sh
 
 USER keycloak
