@@ -7,6 +7,7 @@ COPY --chown=folio:folio folio/setup-aws.sh /opt/javaagents/setup-aws.sh
 USER folio
 RUN chmod -R 550 /opt/javaagents/
 RUN /opt/javaagents/setup-aws.sh 
+RUN ls -la /opt/javaagents/
 
 FROM alpine:$ALPINE_VERSION AS fipsJarDownloader
 
