@@ -48,7 +48,7 @@ USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
 # Setup AWS CLI and download the file from S3
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /opt/keycloak/awscli.zip
-RUN dnf install -y curl unzip && dnf clean all
+RUN unzip /opt/keycloak/awscli.zip
 RUN /opt/keycloak/bin/folio/setup-aws.sh
 
 USER keycloak
