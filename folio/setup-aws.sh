@@ -9,14 +9,12 @@ if [ -n "$OTEL_AGENT_EXTENSION_VERSION" ] && [ -n "$OTEL_AGENT_VERSION" ] && [ -
   else
     AGENT_EXTENSION_FOLDER="releases"
   fi
-  echo "DEBUG1"
-  aws s3 ls s3://$OTEL_BUCKET_NAME/$AGENT_EXTENSION_FOLDER/ | grep "$OTEL_AGENT_EXTENSION_VERSION" 
-  echo "DEBUG2"
+
   AGENT_EXTENSION_FILE_NAME=$(aws s3 ls s3://$OTEL_BUCKET_NAME/$AGENT_EXTENSION_FOLDER/ | grep "$OTEL_AGENT_EXTENSION_VERSION" | tr -s ' ' | cut -d ' ' -f4)
   AGENT_FILE_NAME=$(aws s3 ls s3://$OTEL_BUCKET_NAME/ | grep "opentelemetry-javaagent-$OTEL_AGENT_VERSION" | tr -s ' ' | cut -d ' ' -f4)
-  echo $AGENT_EXTENSION_FILE_NAME
-  echo $AGENT_FILE_NAME
   # If agent file found, copy it and add as Javaagent
+  pwd
+  ls -la
   if [ -n "$AGENT_EXTENSION_FILE_NAME" ] && [ -n "$AGENT_FILE_NAME" ]; then
     AGENT_PATH="/opt/javaagents/$AGENT_FILE_NAME"
     AGENT_EXTENSION_PATH="/opt/javaagents/$AGENT_EXTENSION_FILE_NAME"
