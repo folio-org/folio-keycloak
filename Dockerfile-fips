@@ -6,7 +6,7 @@ FROM 579891902283.dkr.ecr.us-east-1.amazonaws.com/folio/java:17 as otel
 COPY --chown=folio:folio folio/setup-aws.sh /opt/javaagents/setup-aws.sh
 USER folio
 RUN chmod -R 550 /opt/javaagents/
-RUN /opt/keycloak/bin/folio/setup-aws.sh 
+RUN /opt/javaagents/setup-aws.sh 
 
 FROM alpine:$ALPINE_VERSION AS fipsJarDownloader
 
