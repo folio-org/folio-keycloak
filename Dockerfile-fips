@@ -5,7 +5,7 @@ FROM 579891902283.dkr.ecr.us-east-1.amazonaws.com/folio/java:17 as otel
 
 COPY --chown=folio:folio folio/setup-aws.sh /opt/keycloak/bin/folio/setup-aws.sh
 USER folio
-RUN chmod -R 550 /opt/keycloak/bin/folio
+RUN chmod -R 550 /opt/keycloak/bin/folio /opt/javaagents/
 RUN mkdir /opt/javaagents/
 RUN /opt/keycloak/bin/folio/setup-aws.sh 
 
