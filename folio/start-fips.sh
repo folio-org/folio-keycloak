@@ -11,7 +11,7 @@ fi
 
 kcCache=ispn
 kcCacheConfigFile=cache-ispn-jdbc.xml
-
+ls -la /opt/javaagents/
 echo "Starting in FIPS mode"
 /opt/keycloak/bin/kc.sh start \
  --optimized \
