@@ -23,9 +23,10 @@ COPY --chown=keycloak:keycloak custom-theme /opt/keycloak/themes/custom-theme
 COPY --chown=keycloak:keycloak custom-theme-sso-only /opt/keycloak/themes/custom-theme-sso-only
 
 USER root
+RUN microdnf install -y python3 && microdnf clean all
+RUN curl -O https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && pip install awscli --upgrade
+
 RUN chmod -R 550 /opt/keycloak/bin/folio
-RUN echo "[DEBUG]"
-RUN cat /opt/keycloak/bin/folio/start.sh
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
