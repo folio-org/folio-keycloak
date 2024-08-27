@@ -1,11 +1,4 @@
 ARG KEYCLOAK_VERSION=25.0.1
-
-FROM amazon/aws-cli:2.17.38 as awscli
-RUN echo "DEBUG $(aws --version)"
-RUN aws --version
-
-
-
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -16,6 +9,12 @@ COPY --chown=keycloak:keycloak conf/* /opt/keycloak/conf/
 COPY --chown=keycloak:keycloak cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn-jdbc.xml
 
 RUN /opt/keycloak/bin/kc.sh build
+
+
+FROM amazon/aws-cli:2.17.38 as awscli
+RUN echo "DEBUG $(aws --version)"
+RUN aws --version
+
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
