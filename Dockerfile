@@ -1,20 +1,6 @@
 ARG KEYCLOAK_VERSION=25.0.1
-# Use the UBI 9 image as the build environment
-FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 
-# Create a directory for the root filesystem
-RUN mkdir -p /mnt/rootfs
-
-# Install unzip and download the AWS CLI zip file
-RUN ERRORdnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y unzip && \
-    dnf --installroot /mnt/rootfs clean all && \
-    rm -rf /mnt/rootfs/var/cache/dnf
-
-# Download and install AWS CLI v2
-ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscliv2.zip
-RUN unzip /tmp/awscliv2.zip -d /tmp && \
-    /tmp/aws/install --bin-dir /mnt/rootfs/usr/local/bin --install-dir /mnt/rootfs/usr/local/aws-cli --update && \
-    rm -rf /tmp/aws /tmp/awscliv2.zip
+FROM 579891902283.dkr.ecr.us-east-1.amazonaws.com/folio/java:17 as otel
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 
@@ -31,7 +17,9 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
-COPY --from=ubi-micro-build /mnt/rootfs /
+COPY --from=otel /usr/local/bin/aws /usr/local/bin/aws
+RUN aws --version
+RUN which aws
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
