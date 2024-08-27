@@ -11,6 +11,7 @@ USER folio
 RUN chmod -R 750 /opt/javaagents/
 RUN /opt/javaagents/setup-aws.sh 
 RUN ls -la /opt/javaagents/
+RUN aws --version
 
 FROM alpine:$ALPINE_VERSION AS fipsJarDownloader
 
