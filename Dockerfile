@@ -3,8 +3,7 @@ FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 RUN mkdir -p /mnt/rootfs
 
 ADD https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip awscli.zip
-RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y \
-    unzip && \
+RUN dnf install --installroot /mnt/rootfs unzip -y  && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache/dnf
 RUN unzip awscli.zip
