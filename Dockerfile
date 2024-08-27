@@ -3,7 +3,8 @@ ARG KEYCLOAK_VERSION=25.0.1
 FROM amazon/aws-cli:2.17.38 as awscli
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
-RUN --version
+RUN echo "DEBUG $(aws --version)"
+RUN aws --version
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -18,8 +19,6 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
-# COPY --from=awscli /usr/local/bin/aws /usr/local/bin/aws
-# RUN /usr/local/bin/aws --version
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
