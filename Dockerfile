@@ -18,8 +18,7 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 COPY --from=otel /usr/local/bin/aws /usr/local/bin/aws
-RUN aws --version
-RUN which aws
+RUN /usr/local/bin/aws --version
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
