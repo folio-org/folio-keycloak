@@ -1,13 +1,20 @@
 ARG KEYCLOAK_VERSION=25.0.1
+# Use the UBI 9 image as the build environment
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
+
+# Create a directory for the root filesystem
 RUN mkdir -p /mnt/rootfs
 
-ADD https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip awscli.zip
-RUN unzip awscli.zip
-# RUN dnf install --installroot /mnt/rootfs unzip -y  && \
-#     dnf --installroot /mnt/rootfs clean all && \
-#     rm -rf /mnt/rootfs/var/cache/dnf
-# RUN unzip awscli.zip
+# Install unzip and download the AWS CLI zip file
+RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y unzip && \
+    dnf --installroot /mnt/rootfs clean all && \
+    rm -rf /mnt/rootfs/var/cache/dnf
+
+# Download and install AWS CLI v2
+ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscliv2.zip
+RUN unzip /tmp/awscliv2.zip -d /tmp && \
+    /tmp/aws/install --bin-dir /mnt/rootfs/usr/local/bin --install-dir /mnt/rootfs/usr/local/aws-cli --update && \
+    rm -rf /tmp/aws /tmp/awscliv2.zip
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 
