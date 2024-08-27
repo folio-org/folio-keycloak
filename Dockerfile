@@ -1,4 +1,10 @@
 ARG KEYCLOAK_VERSION=25.0.1
+FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
+RUN mkdir -p /mnt/rootfs
+RUN dnf install --installroot /mnt/rootfs awscli --releasever 9 --setopt install_weak_deps=false --nodocs -y && \
+    dnf --installroot /mnt/rootfs clean all && \
+    rpm --root /mnt/rootfs -e --nodeps setup
+
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 
 ENV KC_DB=postgres
@@ -14,6 +20,7 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
+COPY --from=ubi-micro-build /mnt/rootfs /
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
@@ -23,9 +30,6 @@ COPY --chown=keycloak:keycloak custom-theme /opt/keycloak/themes/custom-theme
 COPY --chown=keycloak:keycloak custom-theme-sso-only /opt/keycloak/themes/custom-theme-sso-only
 
 USER root
-RUN microdnf install -y python3 && microdnf clean all
-RUN curl -O https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py && pip install awscli --upgrade
-
 RUN chmod -R 550 /opt/keycloak/bin/folio
 USER keycloak
 
