@@ -1,11 +1,12 @@
 ARG KEYCLOAK_VERSION=25.0.1
 
 FROM amazon/aws-cli:2.17.38 as awscli
-
-FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 RUN echo "DEBUG $(aws --version)"
 RUN aws --version
 
+
+
+FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
