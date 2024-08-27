@@ -1,8 +1,9 @@
 ARG KEYCLOAK_VERSION=25.0.1
 
-FROM 579891902283.dkr.ecr.us-east-1.amazonaws.com/folio/java:17 as otel
+FROM amazon/aws-cli:2.17.38 as awscli
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
+RUN amazon/aws-cli --version
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -17,8 +18,8 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
-COPY --from=otel /usr/local/bin/aws /usr/local/bin/aws
-RUN /usr/local/bin/aws --version
+# COPY --from=awscli /usr/local/bin/aws /usr/local/bin/aws
+# RUN /usr/local/bin/aws --version
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
