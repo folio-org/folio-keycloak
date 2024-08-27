@@ -2,9 +2,11 @@ ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 RUN mkdir -p /mnt/rootfs
 
-RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y awscli && \
+RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y \
+    python3-pip && \
     dnf --installroot /mnt/rootfs clean all && \
-    rm -rf /mnt/rootfs/var/cache/dnf
+    rm -rf /mnt/rootfs/var/cache/dnf && \
+    /mnt/rootfs/usr/bin/pip3 install awscli --no-cache-dir
     
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 
