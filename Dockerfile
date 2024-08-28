@@ -1,10 +1,9 @@
 ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 RUN mkdir -p /mnt/rootfs
-# Install dependencies required to install AWS CLI
-RUN dnf install --installroot /mnt/rootfs -y unzip && \
-    dnf --installroot /mnt/rootfs clean all && \
-    rm -rf /mnt/rootfs/var/cache/dnf
+RUN microdnf install --installroot /mnt/rootfs --nodocs -y unzip && \
+    microdnf clean all && \
+    rm -rf /mnt/rootfs/var/cache/yum
     
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
