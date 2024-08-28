@@ -2,12 +2,9 @@ ARG KEYCLOAK_VERSION=25.0.1
 
 # Stage 1: Use a more feature-rich Red Hat UBI image to install AWS CLI
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
-# Install required tools
-RUN microdnf install -y unzip \
-    && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
-    && unzip awscliv2.zip \
-    && ./aws/install \
-    && rm -rf awscliv2.zip aws
+# Install required tools and AWS CLI from the package manager
+RUN microdnf install -y python3-pip \
+    && pip3 install awscli --upgrade
     
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
@@ -23,10 +20,10 @@ RUN /opt/keycloak/bin/kc.sh build
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 # Copy AWS CLI from the build stage
-COPY --from=ubi-build /usr/local/aws-cli /usr/local/aws-cli
 COPY --from=ubi-build /usr/local/bin/aws /usr/local/bin/aws
+COPY --from=ubi-build /usr/local/lib/python3.9/site-packages/ /usr/local/lib/python3.9/site-packages/
 # Set up environment variables and download the file from S3
-ENV PATH="/usr/local/aws-cli/v2/current/bin:$PATH"
+ENV PATH="/usr/local/bin:$PATH"
 RUN aws --version
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
