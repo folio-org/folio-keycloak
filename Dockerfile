@@ -27,7 +27,7 @@ COPY --from=ubi-build /usr/local/aws-cli /usr/local/aws-cli
 COPY --from=ubi-build /usr/local/bin/aws /usr/local/bin/aws
 # Set up environment variables and download the file from S3
 ENV PATH="/usr/local/aws-cli/v2/current/bin:$PATH"
-RUN which aws
+RUN aws --version
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 RUN mkdir /opt/keycloak/bin/folio
