@@ -34,6 +34,7 @@ USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
 RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
 RUN  /opt/keycloak/bin/folio/setup-aws.sh
+RUN echo $JAVA_OPTS_APPEND
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
