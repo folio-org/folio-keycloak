@@ -1,10 +1,12 @@
 ARG KEYCLOAK_VERSION=25.0.1
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
-ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli.zip
+ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli-x86_64.zip
+ADD https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip /tmp/awscli-aarch64.zip
 RUN microdnf install -y unzip && \
     mkdir -p /mnt/rootfs && \
-    unzip /tmp/awscli.zip -d /mnt/rootfs && \
+    unzip /tmp/awscli-x86_64.zip -d /mnt/rootfs/awscli-x86_64 && \
+    unzip  /tmp/awscli-aarch64.zip -d /mnt/rootfs/awscli-aarch64 && \
     rm -rf /tmp
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
@@ -22,6 +24,7 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 COPY --from=ubi-build /mnt/rootfs /
+RUN ls -la
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
 COPY --chown=keycloak:keycloak folio/setup-admin-client.sh /opt/keycloak/bin/folio/
@@ -32,9 +35,12 @@ COPY --chown=keycloak:keycloak custom-theme-sso-only /opt/keycloak/themes/custom
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
-RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin 
-RUN chmod +x /usr/local/bin/aws
-RUN uname -m
+# Choose the right binary based on architecture
+RUN uname -m | grep -q x86_64 && \
+    ln -sf /usr/local/aws-cli/aws /usr/local/bin/aws || \
+    ln -sf /usr/local/aws-cli-aarch/aws /usr/local/bin/aws
+
+# Check installation
 RUN aws --version
 RUN /opt/keycloak/bin/folio/setup-aws.sh
 USER keycloak
