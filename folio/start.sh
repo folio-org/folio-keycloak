@@ -1,6 +1,6 @@
 #!/bin/bash
 # Wrapper script as docker entrypoint to run configure-realms.sh in parallel to actual kc.sh (the official entrypoint).
-
+echo "$JAVA_OPTS_APPEND JAVA_OPTS_APPEND"
 if [[ -z "$KC_FOLIO_BE_ADMIN_CLIENT_SECRET" ]]; then
   echo "$(date +%F' '%T,%3N) ERROR [start.sh] Environment variable KC_FOLIO_BE_ADMIN_CLIENT_SECRET is not set, check 
   the configuration"
