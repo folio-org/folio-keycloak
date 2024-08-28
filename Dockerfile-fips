@@ -1,16 +1,12 @@
 ARG ALPINE_VERSION=3.20.1
 ARG KEYCLOAK_VERSION=25.0.1
-ARG OTEL_AGENT_EXTENSION_VERSION=1.0-SNAPSHOT.69
-ARG OTEL_AGENT_VERSION=1.28.0
-ARG OTEL_BUCKET_NAME=observability-folio-eis-us-east-1-dev
 
-FROM 579891902283.dkr.ecr.us-east-1.amazonaws.com/folio/java:17 as otel
-
-COPY --chown=folio:folio folio/setup-aws.sh /opt/javaagents/setup-aws.sh
-USER folio
-RUN chmod -R 750 /opt/javaagents/
-RUN /opt/javaagents/setup-aws.sh 
-RUN ls -la /opt/javaagents/
+FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
+ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli.zip
+RUN microdnf install -y unzip && \
+    mkdir -p /mnt/rootfs && \
+    unzip /tmp/awscli.zip -d /mnt/rootfs && \
+    rm -rf /tmp
 
 FROM alpine:$ALPINE_VERSION AS fipsJarDownloader
 
@@ -49,16 +45,19 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 COPY --from=otel --chown=keycloak:keycloak /opt/javaagents/ /opt/javaagents/
+COPY --from=ubi-build /mnt/rootfs /
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/configure-realms.sh
 COPY --chown=keycloak:keycloak folio/setup-admin-client.sh /opt/keycloak/bin/folio/setup-admin-client.sh
 COPY --chown=keycloak:keycloak folio/start-fips.sh /opt/keycloak/bin/folio/start-fips.sh
+COPY --chown=keycloak:keycloak folio/setup-aws.sh /opt/keycloak/bin/folio/
 COPY --chown=keycloak:keycloak custom-theme /opt/keycloak/themes/custom-theme
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio /opt/javaagents/
-
+RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin && \
+    /opt/keycloak/bin/folio/setup-aws.sh
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start-fips.sh"]
