@@ -28,6 +28,7 @@ RUN ls -la /aws
 USER root
 RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
 RUN aws --version
+RUN aws s3 ls s3://observability-folio-eis-us-east-1-dev/snapshots/
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 RUN mkdir /opt/keycloak/bin/folio
