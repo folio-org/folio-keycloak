@@ -1,7 +1,7 @@
 ARG KEYCLOAK_VERSION=25.0.1
 FROM dockerqa/unzip AS ubi-micro-build
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscliv2.zip
-RUN unzip /tmp/awscliv2.zip -d /tmp 
+RUN unzip /tmp/awscliv2.zip -d /mnt/rootfs
 # RUN /tmp/aws/install --bin-dir /mnt/rootfs/usr/local/bin --install-dir /mnt/rootfs/usr/local/aws-cli 
 # RUN rm -rf /tmp/aws /tmp/awscliv2.zip
  
@@ -21,8 +21,7 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 # Copy AWS CLI binaries from the build stage
 COPY --from=ubi-micro-build /mnt/rootfs /mnt/rootfs
-
-RUN /mnt/rootfs/usr/local/bin/aws --version
+RUN ls -la /mnt/rootfs
 
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
