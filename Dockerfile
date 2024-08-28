@@ -31,6 +31,7 @@ COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 # Copy AWS CLI binaries from the build stage
 COPY --from=ubi-micro-build /mnt/rootfs/usr/local/bin/aws /usr/local/bin/aws
 COPY --from=ubi-micro-build /mnt/rootfs/usr/local/aws-cli /usr/local/aws-cli
+RUN /usr/local/bin/aws --version
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
