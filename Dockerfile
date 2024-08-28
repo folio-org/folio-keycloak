@@ -1,14 +1,15 @@
 ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 # Install 'unzip' with minimal dependencies and maximum parallel downloads
-RUN dnf install --installroot /mnt/rootfs \
-                --releasever 9 \
-                --setopt=install_weak_deps=False \
-                --setopt=max_parallel_downloads=10 \
-                --nodocs \
-                -y unzip && \
-    dnf --installroot /mnt/rootfs clean all && \
-    rm -rf /mnt/rootfs/var/cache/dnf
+RUN mkdir /mnt/rootfs && yum install -installroot /mnt/rootfs unzip
+# RUN dnf install --installroot /mnt/rootfs \
+#                 --releasever 9 \
+#                 --setopt=install_weak_deps=False \
+#                 --setopt=max_parallel_downloads=10 \
+#                 --nodocs \
+#                 -y unzip && \
+#     dnf --installroot /mnt/rootfs clean all && \
+#     rm -rf /mnt/rootfs/var/cache/dnf
     
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
