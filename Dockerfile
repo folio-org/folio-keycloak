@@ -6,6 +6,8 @@ FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
 RUN microdnf install -y unzip
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli.zip
 RUN ls -la /tmp
+RUN mkdir -p /mnt/rootfs
+RUN unzip /tmp/awscli.zip -d /mnt/rootfs
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
