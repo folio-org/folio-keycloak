@@ -32,8 +32,10 @@ COPY --chown=keycloak:keycloak custom-theme-sso-only /opt/keycloak/themes/custom
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
-RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin && \
-    /opt/keycloak/bin/folio/setup-aws.sh
+RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin 
+RUN uname -m
+RUN aws --version
+RUN /opt/keycloak/bin/folio/setup-aws.sh
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
