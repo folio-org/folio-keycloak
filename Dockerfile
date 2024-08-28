@@ -9,7 +9,7 @@ RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_d
 # Download and install AWS CLI v2
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscliv2.zip
 RUN /mnt/rootfs/usr/bin/unzip /tmp/awscliv2.zip -d /tmp && \
-    /tmp/aws/install --bin-dir /mnt/rootfs/usr/local/bin --install-dir /mnt/rootfs/usr/local/aws-cli --update && \
+    /tmp/aws/install --bin-dir /mnt/rootfs/usr/local/bin --install-dir /mnt/rootfs/usr/local/aws-cli && \
     rm -rf /tmp/aws /tmp/awscliv2.zip
 
 
