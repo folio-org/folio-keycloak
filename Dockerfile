@@ -2,7 +2,7 @@ ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 RUN mkdir -p /mnt/rootfs
 # Install dependencies required to install AWS CLI
-RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y unzip && \
+RUN dnf install --installroot /mnt/rootfs -y unzip && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache/dnf
     
