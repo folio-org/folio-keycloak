@@ -1,10 +1,9 @@
 ARG KEYCLOAK_VERSION=25.0.1
 FROM dockerqa/unzip AS ubi-micro-build
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscliv2.zip
-RUN ls -la /tmp
 RUN unzip /tmp/awscliv2.zip -d /tmp 
-RUN /tmp/aws/install --bin-dir /mnt/rootfs/usr/local/bin --install-dir /mnt/rootfs/usr/local/aws-cli 
-RUN rm -rf /tmp/aws /tmp/awscliv2.zip
+# RUN /tmp/aws/install --bin-dir /mnt/rootfs/usr/local/bin --install-dir /mnt/rootfs/usr/local/aws-cli 
+# RUN rm -rf /tmp/aws /tmp/awscliv2.zip
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
