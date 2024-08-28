@@ -24,7 +24,7 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 # Copy AWS CLI from the build stage
 COPY --from=ubi-build /usr/local/aws-cli /usr/local/aws-cli
-COPY --from=ubi-build /usr/bin/aws /usr/bin/aws
+COPY --from=ubi-build /usr/local/bin/aws /usr/local/bin/aws
 # Set up environment variables and download the file from S3
 ENV PATH="/usr/local/aws-cli/v2/current/bin:$PATH"
 RUN which aws
