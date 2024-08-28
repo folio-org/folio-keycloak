@@ -20,7 +20,11 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 COPY --from=awscli --chown=keycloak:keycloak /usr/local/bin/aws /usr/local/bin/aws
-RUN aws --version
+RUN ls -la /usr/local/bin
+RUN ls -la /usr/local/bin/aws
+RUN /usr/local/bin/aws --version
+
+
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
 COPY --chown=keycloak:keycloak folio/setup-admin-client.sh /opt/keycloak/bin/folio/
