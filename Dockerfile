@@ -1,11 +1,16 @@
 ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 RUN mkdir -p /mnt/rootfs
-RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y awscli && \
+# Install dependencies required to install AWS CLI
+RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y unzip curl && \
     dnf --installroot /mnt/rootfs clean all && \
-    rpm --root /mnt/rootfs -e --nodeps setup
-RUN echo "DEBUG $(ls -la /mnt/rootfs)"
-RUN which aws
+    rm -rf /mnt/rootfs/var/cache/dnf
+
+# Download and install AWS CLI v2
+ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscliv2.zip
+RUN /mnt/rootfs/usr/bin/unzip /tmp/awscliv2.zip -d /tmp && \
+    /tmp/aws/install --bin-dir /mnt/rootfs/usr/local/bin --install-dir /mnt/rootfs/usr/local/aws-cli --update && \
+    rm -rf /tmp/aws /tmp/awscliv2.zip
 
 
     
@@ -23,7 +28,9 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
-COPY --from=ubi-micro-build --chown=keycloak:keycloak /mnt/rootfs /mnt/rootfs
+# Copy AWS CLI binaries from the build stage
+COPY --from=ubi-micro-build /mnt/rootfs/usr/local/bin/aws /usr/local/bin/aws
+COPY --from=ubi-micro-build /mnt/rootfs/usr/local/aws-cli /usr/local/aws-cli
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
