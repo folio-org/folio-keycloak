@@ -24,6 +24,7 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 # Copy Python and AWS CLI from the build stage
 COPY --from=ubi-build /mnt/rootfs /
+RUN uname -m
 RUN ls -la /aws
 USER root
 RUN ./aws/install
