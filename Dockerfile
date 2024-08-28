@@ -20,8 +20,8 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 
 # Copy AWS CLI binaries from the build stage
-COPY --from=ubi-micro-build /mnt/rootfs /mnt/rootfs
-RUN ls -la /mnt/rootfs
+COPY --from=ubi-micro-build /mnt/rootfs /
+RUN ls -la /
 
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
