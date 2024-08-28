@@ -19,11 +19,15 @@ COPY --chown=keycloak:keycloak cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn
 RUN /opt/keycloak/bin/kc.sh build
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
-# Copy AWS CLI from the build stage
+# Copy Python and AWS CLI from the build stage
 COPY --from=ubi-build /usr/local/bin/aws /usr/local/bin/aws
-COPY --from=ubi-build /usr/local/lib/python3.9/site-packages/ /usr/local/lib/python3.9/site-packages/
-# Set up environment variables and download the file from S3
+COPY --from=ubi-build /usr/local/lib/python3.9 /usr/local/lib/python3.9
+COPY --from=ubi-build /usr/local/lib64/python3.9 /usr/local/lib64/python3.9
+COPY --from=ubi-build /usr/bin/python3 /usr/bin/python3
+COPY --from=ubi-build /usr/lib64/libpython3.9.so.1.0 /usr/lib64/libpython3.9.so.1.0
+# Set up environment variables and verify AWS CLI installation
 ENV PATH="/usr/local/bin:$PATH"
+# Verify that AWS CLI is installed correctly
 RUN aws --version
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
