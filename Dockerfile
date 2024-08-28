@@ -4,8 +4,8 @@ ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
 # Install required tools and AWS CLI from the package manager
 RUN microdnf install -y unzip
-ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
-RUN ls -la
+ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli.zip
+RUN ls -la /tmp
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
