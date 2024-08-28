@@ -1,7 +1,7 @@
 ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 # Install 'unzip' with minimal dependencies and maximum parallel downloads
-RUN mkdir /mnt/rootfs && yum install -installroot /mnt/rootfs unzip
+RUN mkdir /mnt/rootfs && yum install --installroot /mnt/rootfs -installroot /mnt/rootfs unzip
 # RUN dnf install --installroot /mnt/rootfs \
 #                 --releasever 9 \
 #                 --setopt=install_weak_deps=False \
