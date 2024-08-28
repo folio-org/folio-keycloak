@@ -4,7 +4,7 @@ ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
 # Install required tools and AWS CLI from the package manager
 RUN microdnf install -y unzip
-ADD https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip /tmp/awscli.zip
+ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli.zip
 RUN ls -la /tmp
 RUN mkdir -p /mnt/rootfs
 RUN unzip /tmp/awscli.zip -d /mnt/rootfs
@@ -24,11 +24,10 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 # Copy Python and AWS CLI from the build stage
 COPY --from=ubi-build /mnt/rootfs /
-RUN uname -m
 RUN ls -la /aws
 USER root
-RUN ./aws/install
-RUN /usr/local/bin/aws --version
+RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
+RUN aws --version
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 RUN mkdir /opt/keycloak/bin/folio
