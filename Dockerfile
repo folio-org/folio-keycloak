@@ -1,9 +1,9 @@
 ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
-RUN mkdir -p /mnt/rootfs
-RUN microdnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y unzip && \
-    microdnf clean all && \
-    rm -rf /mnt/rootfs/var/cache/yum
+RUN mkdir -p /mnt/rootfs && \
+    dnf install --installroot /mnt/rootfs --releasever 9 -y --setopt=tsflags=nodocs --setopt=install_weak_deps=False --setopt=fastestmirror=True unzip && \
+    dnf --installroot /mnt/rootfs clean all && \
+    rm -rf /mnt/rootfs/var/cache/dnf
     
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
