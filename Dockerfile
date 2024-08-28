@@ -13,6 +13,7 @@ RUN /opt/keycloak/bin/kc.sh build
 
 FROM amazon/aws-cli:2.17.38 as awscli
 RUN echo "DEBUG $(aws --version)"
+RUN which aws
 RUN aws --version
 
 
