@@ -1,14 +1,11 @@
 ARG KEYCLOAK_VERSION=25.0.1
 
-# Stage 1: Use a more feature-rich Red Hat UBI image to install AWS CLI
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
-# Install required tools and AWS CLI from the package manager
 RUN microdnf install -y unzip
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli.zip
-RUN ls -la /tmp
-RUN mkdir -p /mnt/rootfs
-RUN unzip /tmp/awscli.zip -d /mnt/rootfs
-RUN ls -la /mnt/rootfs
+RUN mkdir -p /mnt/rootfs && \
+    unzip /tmp/awscli.zip -d /mnt/rootfs && \
+    rm -rf /tmp
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
@@ -22,15 +19,9 @@ COPY --chown=keycloak:keycloak cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn
 RUN /opt/keycloak/bin/kc.sh build
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
-# Copy Python and AWS CLI from the build stage
-COPY --from=ubi-build /mnt/rootfs /
-RUN ls -la /aws
-USER root
-RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
-RUN aws --version
-RUN aws s3 ls s3://observability-folio-eis-us-east-1-dev/snapshots/
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
+COPY --from=ubi-build /mnt/rootfs /
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
 COPY --chown=keycloak:keycloak folio/setup-admin-client.sh /opt/keycloak/bin/folio/
@@ -40,6 +31,8 @@ COPY --chown=keycloak:keycloak custom-theme-sso-only /opt/keycloak/themes/custom
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
+RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin && \
+    /opt/keycloak/bin/folio/setup-aws.sh
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
