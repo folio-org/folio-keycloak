@@ -5,6 +5,8 @@ RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_d
     -y python3 pip3 awscli  && \
     dnf --installroot /mnt/rootfs clean all && \
     rpm --root /mnt/rootfs -e --nodeps setup
+RUN echo "DEBUG $(ls -la /mnt/rootfs)"
+RUN which aws
 
 
     
