@@ -1,9 +1,9 @@
 ARG KEYCLOAK_VERSION=25.0.1
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
-RUN microdnf install -y unzip
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli.zip
-RUN mkdir -p /mnt/rootfs && \
+RUN microdnf install -y unzip && \
+    mkdir -p /mnt/rootfs && \
     unzip /tmp/awscli.zip -d /mnt/rootfs && \
     rm -rf /tmp
  
@@ -32,9 +32,8 @@ COPY --chown=keycloak:keycloak custom-theme-sso-only /opt/keycloak/themes/custom
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
-RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin
-RUN  /opt/keycloak/bin/folio/setup-aws.sh
-RUN echo $JAVA_OPTS_APPEND
+RUN ./aws/install -i /usr/local/aws-cli -b /usr/local/bin && \
+    /opt/keycloak/bin/folio/setup-aws.sh
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
