@@ -1,7 +1,7 @@
 ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9 AS ubi-micro-build
 RUN mkdir -p /mnt/rootfs
-RUN microdnf install --installroot /mnt/rootfs --nodocs -y unzip && \
+RUN microdnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y unzip && \
     microdnf clean all && \
     rm -rf /mnt/rootfs/var/cache/yum
     
