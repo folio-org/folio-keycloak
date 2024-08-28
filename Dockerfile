@@ -37,8 +37,8 @@ USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
 # Choose the right binary based on architecture
 RUN uname -m | grep -q x86_64 && \
-    ln -sf /usr/local/aws-cli/aws /usr/local/bin/aws || \
-    ln -sf /usr/local/aws-cli-aarch/aws /usr/local/bin/aws
+    ./awscli-x86_64/aws/install -i /usr/local/aws-cli -b /usr/local/bin || \
+    ./awscli-aarch64/aws/install -i /usr/local/aws-cli -b /usr/local/bin
 
 # Check installation
 RUN aws --version
