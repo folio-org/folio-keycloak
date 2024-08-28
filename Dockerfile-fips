@@ -44,7 +44,6 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
-COPY --from=otel --chown=keycloak:keycloak /opt/javaagents/ /opt/javaagents/
 COPY --from=ubi-build /mnt/rootfs /
 
 RUN mkdir /opt/keycloak/bin/folio
