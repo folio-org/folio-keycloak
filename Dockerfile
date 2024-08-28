@@ -27,6 +27,7 @@ COPY --from=ubi-build /mnt/rootfs /
 RUN ls -la /aws
 USER root
 RUN ./aws/install
+RUN /usr/local/bin/aws --version
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 RUN mkdir /opt/keycloak/bin/folio
