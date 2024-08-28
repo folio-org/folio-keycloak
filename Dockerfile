@@ -8,6 +8,7 @@ ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli.zip
 RUN ls -la /tmp
 RUN mkdir -p /mnt/rootfs
 RUN unzip /tmp/awscli.zip -d /mnt/rootfs
+RUN ls -la /mnt/rootfs
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
@@ -22,15 +23,8 @@ RUN /opt/keycloak/bin/kc.sh build
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 # Copy Python and AWS CLI from the build stage
-COPY --from=ubi-build /usr/local/bin/aws /usr/local/bin/aws
-COPY --from=ubi-build /usr/local/lib/python3.9 /usr/local/lib/python3.9
-COPY --from=ubi-build /usr/local/lib64/python3.9 /usr/local/lib64/python3.9
-COPY --from=ubi-build /usr/bin/python3 /usr/bin/python3
-COPY --from=ubi-build /usr/lib64/libpython3.9.so.1.0 /usr/lib64/libpython3.9.so.1.0
-# Set up environment variables and verify AWS CLI installation
-ENV PATH="/usr/local/bin:$PATH"
-# Verify that AWS CLI is installed correctly
-RUN aws --version
+COPY --from=ubi-build /mnt/rootfs /
+RUN ls -la /
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 RUN mkdir /opt/keycloak/bin/folio
