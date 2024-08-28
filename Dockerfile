@@ -1,8 +1,7 @@
 ARG KEYCLOAK_VERSION=25.0.1
 
-# Stage 1: Use a build stage with Red Hat UBI 9 to install AWS CLI
-FROM registry.access.redhat.com/ubi9 AS ubi-build
-
+# Stage 1: Use a more feature-rich Red Hat UBI image to install AWS CLI
+FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
 # Install required tools
 RUN microdnf install -y unzip \
     && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
