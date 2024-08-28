@@ -1,7 +1,4 @@
 #!/bin/bash
-OTEL_AGENT_EXTENSION_VERSION="1.0-SNAPSHOT.230"
-OTEL_AGENT_VERSION="1.28.0"
-OTEL_BUCKET_NAME="observability-folio-eis-us-east-1-dev"
 # Check if OTEL_AGENT_EXTENSION_VERSION and OTEL_BUCKET_NAME environment variables are set
 if [ -n "$OTEL_AGENT_EXTENSION_VERSION" ] && [ -n "$OTEL_AGENT_VERSION" ] && [ -n "$OTEL_BUCKET_NAME" ]; then
   if [[ "$OTEL_AGENT_EXTENSION_VERSION" == *SNAPSHOT* ]]; then
