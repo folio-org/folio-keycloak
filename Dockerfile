@@ -8,7 +8,7 @@ RUN microdnf install -y unzip && \
     unzip /tmp/awscli-x86_64.zip -d /mnt/rootfs/awscli-x86_64 && \
     unzip  /tmp/awscli-aarch64.zip -d /mnt/rootfs/awscli-aarch64 && \
     rm -rf /tmp
-RUN microdnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y gawk && \
+RUN microdnf install --installroot /mnt/rootfs --releasever 9 --nodocs -y gawk && \
     microdnf --installroot /mnt/rootfs clean all && \
     rpm --root /mnt/rootfs -e --nodeps setup
  
