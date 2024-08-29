@@ -42,7 +42,6 @@ RUN uname -m | grep -q x86_64 && \
 
 # Check installation
 RUN aws --version
-RUN /opt/keycloak/bin/folio/setup-aws.sh
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
