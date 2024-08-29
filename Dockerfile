@@ -3,11 +3,14 @@ ARG KEYCLOAK_VERSION=25.0.1
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS ubi-build
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip /tmp/awscli-x86_64.zip
 ADD https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip /tmp/awscli-aarch64.zip
-RUN microdnf install -y unzip gawk && \
+RUN microdnf install -y unzip && \
     mkdir -p /mnt/rootfs && \
     unzip /tmp/awscli-x86_64.zip -d /mnt/rootfs/awscli-x86_64 && \
     unzip  /tmp/awscli-aarch64.zip -d /mnt/rootfs/awscli-aarch64 && \
     rm -rf /tmp
+RUN dnf install --installroot /mnt/rootfs --releasever 9 --setopt install_weak_deps=false --nodocs -y gawk && \
+    dnf --installroot /mnt/rootfs clean all && \
+    rpm --root /mnt/rootfs -e --nodeps setup
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
@@ -25,11 +28,9 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 COPY --from=ubi-build /mnt/rootfs /
 # Copy gawk binary and its dependencies
-COPY --from=ubi-build /usr/bin/gawk /usr/bin/gawk
-COPY --from=ubi-build /usr/lib64/libgawk.so.1 /usr/lib64/libgawk.so.1
-COPY --from=ubi-build /usr/lib64/libsigsegv.so.2 /usr/lib64/libsigsegv.so.2
-
 RUN ls -la
+RUN awk --version
+
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
 COPY --chown=keycloak:keycloak folio/setup-admin-client.sh /opt/keycloak/bin/folio/
