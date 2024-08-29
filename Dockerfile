@@ -31,7 +31,7 @@ COPY --from=ubi-build /mnt/rootfs /
 COPY --from=ubi-build /usr/bin/gawk /usr/bin/
 # Copy gawk binary and its dependencies
 RUN ls -la /usr/bin
-RUN awk -W version
+RUN /usr/bin/gawk -W version
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
