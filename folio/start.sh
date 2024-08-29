@@ -24,6 +24,11 @@ else
   echo "OTEL_AGENT_EXTENSION_VERSION environment variable is not set"
 fi
 
+if [[ -z "$KC_FOLIO_BE_ADMIN_CLIENT_SECRET" ]]; then
+  echo "$(date +%F' '%T,%3N) ERROR [start.sh] Environment variable KC_FOLIO_BE_ADMIN_CLIENT_SECRET is not set, check 
+  the configuration"
+  exit 1
+fi
 /opt/keycloak/bin/folio/configure-realms.sh &
 
 kcCache=ispn
