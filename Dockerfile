@@ -1,10 +1,27 @@
+ARG ALPINE_VERSION=3.20.1
 ARG KEYCLOAK_VERSION=25.0.1
-FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
+FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
+
+# Set the working directory
+WORKDIR /tmp/keycloak-providers-jars
+
+# FOLIO Keycloak plugins versions to download
+ARG KCPLUG_DETECT_FOLIO_USER_VERSION=1.0.0
+
+ARG FOLIO_MAVEN_URL=https://repository.folio.org/repository/maven-releases
+
+# Download plugin JAR files
+RUN apk upgrade --no-cache && apk --no-cache add curl \
+ && curl -O ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-detect-folio-user/${KCPLUG_DETECT_FOLIO_USER_VERSION}/keycloak-detect-folio-user-${KCPLUG_DETECT_FOLIO_USER_VERSION}.jar
+
+FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION AS builder
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
 ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz
+
+COPY --chown=keycloak:keycloak --from=providers_jar_downloader /tmp/keycloak-providers-jars/ /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak libs/folio-scripts.jar /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak conf/* /opt/keycloak/conf/
 COPY --chown=keycloak:keycloak cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn-jdbc.xml
