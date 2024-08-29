@@ -3,7 +3,6 @@
 #!/bin/bash
 # Check if OTEL_AGENT_EXTENSION_VERSION and OTEL_BUCKET_NAME environment variables are set
 echo "DEBUG STAGE"
-echo "$(aws s3 ls s3://$OTEL_BUCKET_NAME/$AGENT_EXTENSION_FOLDER/)"
 echo """$(aws s3 ls s3://$OTEL_BUCKET_NAME/ | grep "opentelemetry-javaagent")"""
 echo """$(aws s3 ls s3://$OTEL_BUCKET_NAME/$AGENT_EXTENSION_FOLDER/ | grep "$OTEL_AGENT_EXTENSION_VERSION" | awk '{print $NF}')"""
 if [ -n "$OTEL_AGENT_EXTENSION_VERSION" ] && [ -n "$OTEL_AGENT_VERSION" ] && [ -n "$OTEL_BUCKET_NAME" ]; then
