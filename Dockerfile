@@ -8,9 +8,8 @@ RUN microdnf install -y unzip && \
     unzip /tmp/awscli-x86_64.zip -d /mnt/rootfs/awscli-x86_64 && \
     unzip  /tmp/awscli-aarch64.zip -d /mnt/rootfs/awscli-aarch64 && \
     rm -rf /tmp
-RUN microdnf install --installroot /mnt/rootfs --releasever 9 --nodocs -y gawk && \
-    microdnf --installroot /mnt/rootfs clean all && \
-    rpm --root /mnt/rootfs -e --nodeps setup
+RUN microdnf install --noplugins --installroot /mnt/rootfs --releasever 9 --nodocs -y gawk
+RUN which awk
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
