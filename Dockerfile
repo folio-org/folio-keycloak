@@ -8,10 +8,6 @@ RUN microdnf install -y unzip && \
     unzip /tmp/awscli-x86_64.zip -d /mnt/rootfs/awscli-x86_64 && \
     unzip  /tmp/awscli-aarch64.zip -d /mnt/rootfs/awscli-aarch64 && \
     rm -rf /tmp
-RUN microdnf install --noplugins --releasever 9 --setopt=tsflags=nodocs -y gawk
-RUN awk -W version
-RUN ls -la /usr/bin
-RUN ls -la /usr/lib64
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
@@ -28,9 +24,6 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 COPY --from=ubi-build /mnt/rootfs /
-COPY --from=ubi-build /usr/bin/gawk /usr/bin/
-# Copy gawk binary and its dependencies
-RUN sed 's/  */ /g'
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
