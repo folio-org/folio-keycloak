@@ -8,7 +8,7 @@ RUN microdnf install -y unzip && \
     unzip /tmp/awscli-x86_64.zip -d /mnt/rootfs/awscli-x86_64 && \
     unzip  /tmp/awscli-aarch64.zip -d /mnt/rootfs/awscli-aarch64 && \
     rm -rf /tmp
-RUN RUN microdnf install --noplugins --installroot /mnt/rootfs --releasever 9 --setopt=tsflags=nodocs --setopt=cachedir=/mnt/rootfs/var/cache/dnf --setopt=reposdir=/etc/yum.repos.d --setopt=varsdir=/etc/yum/vars -y gawk
+RUN microdnf install --noplugins --installroot /mnt/rootfs --releasever 9 --setopt=tsflags=nodocs --setopt=cachedir=/mnt/rootfs/var/cache/dnf --setopt=reposdir=/etc/yum.repos.d --setopt=varsdir=/etc/yum/vars -y gawk
 
 RUN which awk
  
