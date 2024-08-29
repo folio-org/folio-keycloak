@@ -9,8 +9,9 @@ RUN microdnf install -y unzip && \
     unzip  /tmp/awscli-aarch64.zip -d /mnt/rootfs/awscli-aarch64 && \
     rm -rf /tmp
 RUN microdnf install --noplugins --releasever 9 --setopt=tsflags=nodocs -y gawk
-
-RUN which awk
+RUN awk -W version
+RUN ls -la /usr/bin
+RUN ls -la /usr/lib64
  
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION as builder
 ENV KC_DB=postgres
