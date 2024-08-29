@@ -38,13 +38,10 @@ RUN chmod -R 550 /opt/keycloak/bin/folio
 # Choose the right binary based on architecture
 RUN mkdir /opt/javaagents && \
     chown -R keycloak:keycloak /opt/javaagents && \
-    chmod -R 550 /opt/javaagents && \
+    chmod -R 777 /opt/javaagents && \
     uname -m | grep -q x86_64 && \
     ./awscli-x86_64/aws/install -i /usr/local/aws-cli -b /usr/local/bin || \
     ./awscli-aarch64/aws/install -i /usr/local/aws-cli -b /usr/local/bin
-
-# Check installation
-RUN aws --version
 USER keycloak
 
 ENTRYPOINT ["/opt/keycloak/bin/folio/start.sh"]
