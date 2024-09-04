@@ -1,0 +1,15 @@
+name: Docker central workflow
+
+# STATUS: 20240904: testing
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ FOLIO-4039-docker-workflows ]
+
+jobs:
+  docker:
+    uses: folio-org/.github/.github/workflows/docker.yml@FOLIO-4039-docker-workflows
+    # if: github.ref_name == github.event.repository.default_branch || github.event_name != 'push'
+    secrets: inherit
+
