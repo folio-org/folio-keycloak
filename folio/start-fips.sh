@@ -11,6 +11,7 @@ fi
 
 kcCache=ispn
 kcCacheConfigFile=cache-ispn-jdbc.xml
+logLevel=INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE
 
 echo "Starting in FIPS mode"
 /opt/keycloak/bin/kc.sh start \
@@ -22,5 +23,5 @@ echo "Starting in FIPS mode"
  --spi-password-hashing-pbkdf2-sha256-max-padding-length=14 \
  --cache="$kcCache" \
  --cache-config-file="$kcCacheConfigFile" \
- --log-level=INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE \
+ --log-level="${KC_LOG_LEVEL:-${logLevel}}" \
  -Djava.security.properties=/opt/keycloak/conf/java.security
