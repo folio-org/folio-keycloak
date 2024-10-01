@@ -1,5 +1,5 @@
 ARG ALPINE_VERSION=3.20.1
-ARG KEYCLOAK_VERSION=25.0.1
+ARG KEYCLOAK_VERSION=25.0.6
 FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 
 # Set the working directory
