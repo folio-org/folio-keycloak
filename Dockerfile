@@ -23,6 +23,7 @@ ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz
 
 COPY --chown=keycloak:keycloak --from=providers_jar_downloader /tmp/keycloak-providers-jars/ /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak libs/folio-scripts.jar /opt/keycloak/providers/
+COPY --chown=keycloak:keycloak libs/keycloak-ecs-folio-authenticator.jar /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak conf/* /opt/keycloak/conf/
 COPY --chown=keycloak:keycloak cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn-jdbc.xml
 
