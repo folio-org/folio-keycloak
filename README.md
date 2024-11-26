@@ -26,3 +26,4 @@ docker build -t folio-keycloak .
 | KC_HTTPS_KEY_STORE_PASSWORD      |   true   | -                                                               | BCFSK Keystore password     |
 | KCADM_HTTPS_TRUST_STORE_PASSWORD |  false   | SecretPassword                                                  | Truststore password         |
 | KC_LOG_LEVEL                     |  false   | INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE | Keycloak log level          |
+
