@@ -9,6 +9,6 @@ on:
 
 jobs:
   docker:
-    uses: folio-org/.github/.github/workflows/docker.yml@master
+    uses: folio-org/.github/.github/workflows/docker.yml@v1
     secrets: inherit
 
