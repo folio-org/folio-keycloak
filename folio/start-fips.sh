@@ -16,6 +16,7 @@ logLevel=INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE
 echo "Starting in FIPS mode"
 /opt/keycloak/bin/kc.sh start \
  --optimized \
+ --metrics-enabled=true \
  --http-enabled=false \
  --https-key-store-type=BCFKS \
  --https-key-store-file="${KC_HTTPS_KEY_STORE:-/opt/keycloak/conf/test.server.keystore}" \
