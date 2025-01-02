@@ -58,7 +58,7 @@
         <key media-type="application/x-java-object"/>
         <value media-type="application/x-java-object"/>
       </encoding>
-      <memory max-count="10000"/>
+      <memory max-count="80000"/>
     </local-cache>
     <replicated-cache name="work">
       <expiration lifespan="-1"/>
