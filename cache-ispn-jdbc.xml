@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <infinispan
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="urn:infinispan:config:11.0 http://www.infinispan.org/schemas/infinispan-config-11.0.xsd"
-  xmlns="urn:infinispan:config:11.0">
+  xsi:schemaLocation="urn:infinispan:config:15.0 http://www.infinispan.org/schemas/infinispan-config-15.0.xsd"
+  xmlns="urn:infinispan:config:15.0">
 
   <!-- custom stack goes into the jgroups element -->
   <jgroups>
@@ -21,14 +21,14 @@
   <cache-container name="keycloak">
     <!-- custom stack must be referenced by name in the stack attribute of the transport element -->
     <transport lock-timeout="60000" stack="jdbc-ping-tcp"/>
-    <local-cache name="realms">
+    <local-cache name="realms" simple-cache="true">
       <encoding>
         <key media-type="application/x-java-object"/>
         <value media-type="application/x-java-object"/>
       </encoding>
       <memory max-count="10000"/>
     </local-cache>
-    <local-cache name="users">
+    <local-cache name="users" simple-cache="true">
       <encoding>
         <key media-type="application/x-java-object"/>
         <value media-type="application/x-java-object"/>
@@ -53,7 +53,7 @@
     <distributed-cache name="loginFailures" owners="2">
       <expiration lifespan="-1"/>
     </distributed-cache>
-    <local-cache name="authorization">
+    <local-cache name="authorization" simple-cache="true">
       <encoding>
         <key media-type="application/x-java-object"/>
         <value media-type="application/x-java-object"/>
@@ -63,12 +63,20 @@
     <replicated-cache name="work">
       <expiration lifespan="-1"/>
     </replicated-cache>
-    <local-cache name="keys">
+    <local-cache name="keys" simple-cache="true">
       <encoding>
         <key media-type="application/x-java-object"/>
         <value media-type="application/x-java-object"/>
       </encoding>
       <expiration max-idle="3600000"/>
+      <memory max-count="1000"/>
+    </local-cache>
+    <local-cache name="crl" simple-cache="true">
+      <encoding>
+        <key media-type="application/x-java-object"/>
+        <value media-type="application/x-java-object"/>
+      </encoding>
+      <expiration lifespan="-1"/>
       <memory max-count="1000"/>
     </local-cache>
     <distributed-cache name="actionTokens" owners="2">
