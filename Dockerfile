@@ -6,7 +6,7 @@ FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 WORKDIR /tmp/keycloak-providers-jars
 
 # FOLIO Keycloak plugins versions to download
-ARG KCPLUG_DETECT_FOLIO_USER_VERSION=1.0.0
+ARG KCPLUG_DETECT_FOLIO_USER_VERSION=1.1.0
 
 ARG FOLIO_MAVEN_URL=https://repository.folio.org/repository/maven-releases
 
