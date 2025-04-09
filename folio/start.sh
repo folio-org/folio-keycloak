@@ -25,4 +25,6 @@ echo "Starting in non FIPS mode"
   --cache-config-file="$kcCacheConfigFile" \
   --log-level="${KC_LOG_LEVEL:-${logLevel}}" \
   --spi-password-hashing-pbkdf2-sha512-max-padding-length=14 \
-  --spi-password-hashing-provider-default=pbkdf2-sha512
+  --spi-password-hashing-provider-default=pbkdf2-sha512 \
+  --bootstrap-admin-username=tmpadm \
+  --bootstrap-admin-password="${KEYCLOAK_ADMIN_PASSWORD}"
