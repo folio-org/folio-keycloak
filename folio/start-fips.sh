@@ -21,8 +21,9 @@ echo "Starting in FIPS mode"
  --https-key-store-file="${KC_HTTPS_KEY_STORE:-/opt/keycloak/conf/test.server.keystore}" \
  --https-key-store-password=${KC_HTTPS_KEY_STORE_PASSWORD:-SecretPassword} \
  --spi-password-hashing-pbkdf2-sha256-max-padding-length=14 \
- --spi-password-hashing-pbkdf2-sha512-max-padding-length=14 \
  --cache="$kcCache" \
  --cache-config-file="$kcCacheConfigFile" \
  --log-level="${KC_LOG_LEVEL:-${logLevel}}" \
  -Djava.security.properties=/opt/keycloak/conf/java.security
+ --bootstrap-admin-username=tmpadm \
+ --bootstrap-admin-password="${KEYCLOAK_ADMIN_PASSWORD}"
