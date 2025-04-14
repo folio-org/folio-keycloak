@@ -24,6 +24,6 @@ echo "Starting in FIPS mode"
  --cache="$kcCache" \
  --cache-config-file="$kcCacheConfigFile" \
  --log-level="${KC_LOG_LEVEL:-${logLevel}}" \
- -Djava.security.properties=/opt/keycloak/conf/java.security
+ -Djava.security.properties=/opt/keycloak/conf/java.security \
  --bootstrap-admin-username=tmpadm \
  --bootstrap-admin-password="${KEYCLOAK_ADMIN_PASSWORD}"
