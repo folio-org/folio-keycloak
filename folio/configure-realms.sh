@@ -14,7 +14,7 @@ function loginAsAdmin() {
     --server "$keycloakUrl" \
     --realm master \
     --user admin \
-    --password "${KEYCLOAK_ADMIN_PASSWORD}" \
+    --password "${KC_BOOTSTRAP_ADMIN_PASSWORD-$KEYCLOAK_ADMIN_PASSWORD}" \
     &> /dev/null
 }
 
