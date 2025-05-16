@@ -11,8 +11,7 @@ ARG KCPLUG_DETECT_FOLIO_USER_VERSION=1.2.0
 ARG FOLIO_MAVEN_URL=https://repository.folio.org/repository/maven-releases
 
 # Download plugin JAR files
-RUN apk upgrade --no-cache && apk --no-cache add curl \
- && curl -O ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-detect-folio-user/${KCPLUG_DETECT_FOLIO_USER_VERSION}/keycloak-detect-folio-user-${KCPLUG_DETECT_FOLIO_USER_VERSION}.jar
+RUN wget ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-detect-folio-user/${KCPLUG_DETECT_FOLIO_USER_VERSION}/keycloak-detect-folio-user-${KCPLUG_DETECT_FOLIO_USER_VERSION}.jar
 
 FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION AS builder
 
