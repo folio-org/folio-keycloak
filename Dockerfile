@@ -18,7 +18,7 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION AS builder
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
-ENV KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz:v1
+ENV KC_FEATURES=scripts:v1,token-exchange:v1,admin-fine-grained-authz:v1
 
 COPY --chown=keycloak:keycloak --from=providers_jar_downloader /tmp/keycloak-providers-jars/ /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak libs/folio-scripts.jar /opt/keycloak/providers/
