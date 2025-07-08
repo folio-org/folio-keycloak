@@ -18,6 +18,7 @@ FROM quay.io/keycloak/keycloak:$KEYCLOAK_VERSION AS builder
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 ENV KC_METRICS_ENABLED=true
+ENV KC_EVENT_METRICS_USER_ENABLED=true
 ENV KC_FEATURES=scripts:v1,token-exchange:v1,admin-fine-grained-authz:v1,user-event-metrics:v1
 
 COPY --chown=keycloak:keycloak --from=providers_jar_downloader /tmp/keycloak-providers-jars/ /opt/keycloak/providers/
