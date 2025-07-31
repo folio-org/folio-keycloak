@@ -10,7 +10,7 @@ fi
 /opt/keycloak/bin/folio/configure-realms.sh &
 
 kcCache=ispn
-kcCacheConfigFile=cache-ispn-jdbc.xml
+kcCacheConfigFile=/opt/keycloak/conf/cache-ispn-jdbc.xml
 logLevel=INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE
 
 echo "Starting in non FIPS mode"
