@@ -27,3 +27,48 @@ docker build -t folio-keycloak .
 | KCADM_HTTPS_TRUST_STORE_PASSWORD |  false   | SecretPassword                                                  | Truststore password         |
 | KC_LOG_LEVEL                     |  false   | INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE | Keycloak log level          |
 
+
+## Migrate exist Realms into Lightweight Token  [migrate-tenants-to-lightweight-tokens.sh](keycloak-scripts/migrate-tenants-to-lightweight-tokens.sh)
+Script to migrate existing cluster realms to lightweight tokens, reducing token footprint and preventing issues caused by oversized request headers.
+For each realm, the following clients will be updated: ImpersonationClient, LoginClient, PasswordResetClient, and Module 2 Module Client.
+
+### Requirements
+Keycloak Admin REST API access
+Keycloak admin username and password
+Bash shell
+Required tools:
+  curl
+  jq (for JSON processing)
+
+###  Usage
+Set up environment variables for client names:
+  Set the environment variables KC_LOGIN_CLIENT_SUFFIX, KC_SERVICE_CLIENT_ID, KC_PASSWORD_RESET_CLIENT_ID, KC_IMPERSONATION_CLIENT to specify four target clients to modify across realms.
+  Set the environment variable KEYCLOAK_URL
+
+#### Example:
+
+export KC_LOGIN_CLIENT_SUFFIX="-login-application"
+export KC_SERVICE_CLIENT_ID="sidecar-module-access-client"
+export KC_PASSWORD_RESET_CLIENT_ID="password-reset-client"
+export KC_IMPERSONATION_CLIENT="impersonation-client"
+export KEYCLOAK_URL="http://your-keycloak-host:8080"
+#### Run the script
+
+Pass your Keycloak admin username and password as parameters:
+  migrate-tenants-to-lightweight-tokens.sh <admin_username> <admin_password>
+   
+
+### What the Script Does
+Fetches all realms (except 'master')
+For each specified client in each realm:
+  Adds or patches the "sub" and "user_id mapper" protocol mappers to ensure lightweight claim configuration.
+Enables "client.use.lightweight.access.token.enabled" for the clients.
+Ensures the lightweight.claim="true" on the "user_id mapper".
+Patches all role policies so fetchRoles is enabled.
+
+If any operation fails (client not found, API error, etc.), outputs a warning or error instead of stopping execution.
+
+### Notes
+The script is safe for reruns: existing mappers and policies are updated, not duplicated.
+Make sure your Keycloak admin user has sufficient permissions for the admin API.
+Always test in staging before run on production.
