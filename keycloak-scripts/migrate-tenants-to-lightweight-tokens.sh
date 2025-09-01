@@ -91,12 +91,13 @@ patch_client_lightweight() {
 
         if ! patched=$(echo "$body" | jq '
           .attributes."client.use.lightweight.access.token.enabled" = "true"
-          | (.protocolMappers[] | select(.name=="user_id mapper").config."lightweight.claim") = "true"
+          | (.protocolMappers[] | select(.name=="user_id mapper" or .name=="username").config."lightweight.claim") = "true"
         '); then
-          echo "ERROR: Failed to patch client or user_id mapper for $client_uuid in $realm." >&2
+          echo "ERROR: Failed to patch client, user_id mapper, or username mapper for $client_uuid in $realm." >&2
           rm -f client.json
           return 1
         fi
+
 
         update_response=$(curl -s -w "%{http_code}" -o update.json -X PUT -H "Authorization: Bearer $token" \
           -H "Content-Type: application/json" --data "$patched" \
