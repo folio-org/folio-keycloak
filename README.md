@@ -30,7 +30,7 @@ docker build -t folio-keycloak .
 
 ## Migrate exist Realms into Lightweight Token  [migrate-tenants-to-lightweight-tokens.sh](keycloak-scripts/migrate-tenants-to-lightweight-tokens.sh)
 Script to migrate existing cluster realms to lightweight tokens, reducing token footprint and preventing issues caused by oversized request headers.
-For each realm, the following clients will be updated: ImpersonationClient, LoginClient, PasswordResetClient, and Module2 Module Client.
+For each realm, the following clients will be updated: ImpersonationClient, LoginClient, PasswordResetClient, and Module 2 Module Client.
 
 ### Requirements
 Keycloak Admin REST API access
@@ -42,15 +42,15 @@ Required tools:
 
 ###  Usage
 Set up environment variables for client names:
-  Set the environment variables CLIENT1, CLIENT2, CLIENT3, CLIENT4 to specify four target clients to modify across realms.
+  Set the environment variables KC_LOGIN_CLIENT_SUFFIX, KC_SERVICE_CLIENT_ID, KC_PASSWORD_RESET_CLIENT_ID, KC_IMPERSONATION_CLIENT to specify four target clients to modify across realms.
   Set the environment variable KEYCLOAK_URL
 
 #### Example:
 
-export CLIENT1="client1"
-export CLIENT2="client2"
-export CLIENT3="client3"
-export CLIENT4="client4"
+export KC_LOGIN_CLIENT_SUFFIX="-login-application"
+export KC_SERVICE_CLIENT_ID="sidecar-module-access-client"
+export KC_PASSWORD_RESET_CLIENT_ID="password-reset-client"
+export KC_IMPERSONATION_CLIENT="impersonation-client"
 export KEYCLOAK_URL="http://your-keycloak-host:8080"
 #### Run the script
 

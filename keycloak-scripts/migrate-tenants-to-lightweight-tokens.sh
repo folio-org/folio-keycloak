@@ -5,7 +5,7 @@ set -euo pipefail
 KEYCLOAK_URL=${KEYCLOAK_URL:-"http://keycloak:8080"}
 ADMIN_USER="$1"
 ADMIN_PASS="$2"
-CLIENT_NAMES=(${CLIENT1:-"client1"} ${CLIENT2:-"client2"} ${CLIENT3:-"client3"} ${CLIENT4:-"client4"})
+CLIENT_NAMES=(${KC_LOGIN_CLIENT_SUFFIX:-"-login-application"} ${KC_SERVICE_CLIENT_ID:-"sidecar-module-access-client"} ${KC_PASSWORD_RESET_CLIENT_ID:-"password-reset-client"} ${KC_IMPERSONATION_CLIENT:-"impersonation-client"})
 
 get_token() {
   response=$(curl -s -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
@@ -145,7 +145,6 @@ patch_role_policies_fetchroles() {
     policy_resp=$(curl -s -w "%{http_code}" -o policy.json -H "Authorization: Bearer $token" \
       "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${pid}")
     http_code="${policy_resp: -3}"
-    echo "Viktor "$policy_resp >&2
     if [[ "$http_code" != "200" ]]; then
       echo "ERROR: Failed to fetch policy $pid for client $client_uuid in realm $realm (HTTP $http_code)" >&2
       rm -f policy.json
@@ -165,7 +164,7 @@ patch_role_policies_fetchroles() {
       -H "Content-Type: application/json" --data "$patched" \
       "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${pid}")
     update_code="${update_resp: -3}"
-    if [[ "$update_code" != "204" ]]; then
+    if [[ "$update_code" != "201" ]]; then
       echo "ERROR: Failed to update fetchRoles in policy $pid for client $client_uuid (realm $realm), HTTP $update_code" >&2
       cat update.json >&2
       rm -f update.json
@@ -184,6 +183,9 @@ echo "$REALMS" | while read -r realm; do
   [[ "$realm" == "master" ]] && continue
   echo "Processing realm: $realm"
   for client in "${CLIENT_NAMES[@]}"; do
+    if [[ "$client" == -* ]]; then
+          client="${realm}${client}"
+    fi
     echo "  Processing client: $client"
     # Add protocol mappers to the client before patching lightweight token
     add_protocol_mapper_to_client "$realm" "$client" "$TOKEN" || true
@@ -193,7 +195,18 @@ echo "$REALMS" | while read -r realm; do
     [[ -z $CLIENT_ID || $CLIENT_ID == "null" ]] && continue
 
     # Patch role policies to fetch roles
-    patch_role_policies_fetchroles "$realm" "$CLIENT_ID" "$TOKEN" || true
+    client_json=$(curl -s -H "Authorization: Bearer $TOKEN" \
+      "${KEYCLOAK_URL}/admin/realms/${realm}/clients?clientId=${client}")
+
+    client_uuid=$(echo "$client_json" | jq -r '.[0].id')
+    enabled=$(echo "$client_json" | jq -r '.[0].authorizationServicesEnabled')
+
+    if [[ "$enabled" == "true" ]]; then
+      patch_role_policies_fetchroles "$realm" "$client_uuid" "$TOKEN" || true
+    else
+      echo "Skipping role policy patch for $client (realm $realm): fine-grained authorization not enabled." >&2
+    fi
+
   done
 done
 
