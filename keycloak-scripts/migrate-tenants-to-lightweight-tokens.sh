@@ -125,8 +125,7 @@ patch_role_policies_fetchroles() {
 
 while true; do
   # Get all role policies' IDs with error handling
-  local policy_resp
-  policy_resp=$(curl -s -w "%{http_code}" -o policies.json -H "Authorization: Bearer $token" \
+  local policy_resp=$(curl -s -w "%{http_code}" -o policies.json -H "Authorization: Bearer $token" \
     "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy?type=role&first=${offset}&max=${page_size}")
   local http_code="${policy_resp: -3}"
   if [[ "$http_code" != "200" ]]; then
@@ -135,18 +134,17 @@ while true; do
     return 1
   fi
 
-  local policies
-  policies=$(jq -r '.[].id' policies.json)
+  local policies=$(jq -r '.[].id' policies.json)
   rm -f policies.json
 
+ echo "  Found $(printf '%s\n' "$policies" | wc -l) role policies in current page for client $client_uuid in realm $realm.">&2
   # If policies is empty, notify and return
   if [[ -z "$policies" ]]; then
         break
   fi
 
   ids+=($policies)
-  local lines_count
-  lines_count=$(printf "$policies" | wc -l)
+  local lines_count=$(printf '%s\n' "$policies" | wc -l)
   if [[ $lines_count -lt $page_size ]]; then break; fi
     ((offset+=page_size))
   done
