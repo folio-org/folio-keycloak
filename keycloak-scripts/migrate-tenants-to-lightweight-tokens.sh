@@ -118,12 +118,15 @@ patch_client_lightweight() {
 
 
 patch_role_policies_fetchroles() {
-  local realm=$1 client_uuid=$2 token=$3
+  local realm="$1" client_uuid="$2" token="$3"
+  local page_size=100
+  local offset=0
+  local ids=()
 
+while true; do
   # Get all role policies' IDs with error handling
-  local policy_resp
-  policy_resp=$(curl -s -w "%{http_code}" -o policies.json -H "Authorization: Bearer $token" \
-    "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy?type=role")
+  local policy_resp=$(curl -s -w "%{http_code}" -o policies.json -H "Authorization: Bearer $token" \
+    "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy?type=role&first=${offset}&max=${page_size}")
   local http_code="${policy_resp: -3}"
   if [[ "$http_code" != "200" ]]; then
     echo "ERROR: Failed to fetch ids of role policies for client $client_uuid in realm $realm (HTTP $http_code)" >&2
@@ -131,17 +134,28 @@ patch_role_policies_fetchroles() {
     return 1
   fi
 
-  local policies
-  policies=$(jq -r '.[].id' policies.json)
+  local policies=$(jq -r '.[].id' policies.json)
   rm -f policies.json
 
+ echo "  Found $(printf '%s\n' "$policies" | wc -l) role policies in current page for client $client_uuid in realm $realm.">&2
   # If policies is empty, notify and return
   if [[ -z "$policies" ]]; then
+        break
+  fi
+
+  ids+=($policies)
+  local lines_count=$(printf '%s\n' "$policies" | wc -l)
+  if [[ $lines_count -lt $page_size ]]; then break; fi
+    ((offset+=page_size))
+  done
+
+  # If ids is empty, notify and return
+  if [[ ${#ids[@]} -eq 0 ]]; then
     echo "Warning: No role policies found for client $client_uuid in realm $realm." >&2
     return 0
   fi
 
-  echo "$policies" | while read -r pid; do
+  printf '%s\n' "${ids[@]}" | while read -r pid; do
     # Retrieve policy JSON with error handling
     policy_resp=$(curl -s -w "%{http_code}" -o policy.json -H "Authorization: Bearer $token" \
       "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${pid}")
@@ -152,7 +166,7 @@ patch_role_policies_fetchroles() {
       continue
     fi
 
-    # Patch the fetchRoles field, validate JSON
+    # Patch fetchRoles in the policy
     if ! patched=$(jq '.config.fetchRoles="true"' policy.json); then
       echo "ERROR: Failed to patch fetchRoles in policy $pid for client $client_uuid (realm $realm)." >&2
       rm -f policy.json
