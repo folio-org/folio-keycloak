@@ -91,7 +91,7 @@ patch_client_lightweight() {
 
         if ! patched=$(echo "$body" | jq '
           .attributes."client.use.lightweight.access.token.enabled" = "true"
-          | (.protocolMappers[] | select(.name=="user_id mapper" or .name=="username" or .name="Password reset action mapper").config."lightweight.claim") = "true"
+          | (.protocolMappers[] | select(.name=="user_id mapper" or .name=="username" or .name=="Password reset action mapper").config."lightweight.claim") = "true"
         '); then
           echo "ERROR: Failed to patch client, user_id mapper, or username mapper for $client_uuid in $realm." >&2
           rm -f client.json
