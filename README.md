@@ -28,6 +28,18 @@ docker build -t folio-keycloak .
 | KC_LOG_LEVEL                     |  false   | INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE | Keycloak log level          |
 
 
+## Setup Admin Client [setup-admin-client.sh](folio/setup-admin-client.sh)
+Script to create or update Keycloak admin client with lightweight token support. Executed automatically during container initialization.
+
+### What the Script Does
+- Creates a new admin client if it doesn't exist with service accounts and proper credentials
+- Enables lightweight access tokens for the client
+- Configures realm roles protocol mapper with lightweight claim support
+- Assigns admin and create-realm roles to the service account
+- For existing clients: enables lightweight tokens and adds missing mappers if needed
+- Idempotent - safe to run multiple times without side effects
+
+
 ## Migrate exist Realms into Lightweight Token  [migrate-tenants-to-lightweight-tokens.sh](keycloak-scripts/migrate-tenants-to-lightweight-tokens.sh)
 Script to migrate existing cluster realms to lightweight tokens, reducing token footprint and preventing issues caused by oversized request headers.
 For each realm, the following clients will be updated: ImpersonationClient, LoginClient, PasswordResetClient, and Module 2 Module Client.
