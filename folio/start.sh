@@ -11,7 +11,7 @@ fi
 
 kcCache=ispn
 kcCacheConfigFile=cache-ispn-jdbc.xml
-logLevel=INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE
+logLevel=INFO,org.keycloak.common.crypto:INFO,org.keycloak.crypto:INFO
 
 echo "Starting in non FIPS mode"
 /opt/keycloak/bin/kc.sh start \
