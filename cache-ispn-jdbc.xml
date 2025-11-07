@@ -9,7 +9,7 @@
     <stack name="jdbc-ping-tcp" extends="tcp">
       <JDBC_PING2 connection_driver="org.postgresql.Driver"
         connection_username="${env.KC_DB_USERNAME}" connection_password="${env.KC_DB_PASSWORD}"
-        connection_url="jdbc:postgresql://${env.KC_DB_URL_HOST}/${env.KC_DB_URL_DATABASE}"
+        connection_url="jdbc:postgresql://${env.KC_DB_URL_HOST}:${env.KC_DB_URL_PORT}/${env.KC_DB_URL_DATABASE}"
         info_writer_sleep_time="500"
         remove_all_data_on_view_change="true"
         stack.combine="REPLACE"

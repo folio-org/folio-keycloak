@@ -1,12 +1,12 @@
 ARG ALPINE_VERSION=3.21.2
-ARG KEYCLOAK_VERSION=26.2.5
+ARG KEYCLOAK_VERSION=26.3.4
 FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 
 # Set the working directory
 WORKDIR /tmp/keycloak-providers-jars
 
 # FOLIO Keycloak plugins versions to download
-ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.2.0
+ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.3.0
 
 ARG FOLIO_MAVEN_URL=https://repository.folio.org/repository/maven-releases
 

@@ -1,5 +1,5 @@
 ARG ALPINE_VERSION=3.21.2
-ARG KEYCLOAK_VERSION=26.2.5
+ARG KEYCLOAK_VERSION=26.3.4
 FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 
 # Set the working directory
@@ -9,7 +9,7 @@ WORKDIR /tmp/keycloak-providers-jars
 ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.2.0
 
 # Bouncy Castle JAR versions to download
-ARG BC_FIPS_VERSION=1.0.2.5
+ARG BC_FIPS_VERSION=1.0.2.6
 ARG BCTLS_FIPS_VERSION=1.0.19
 ARG BCPKIX_FIPS_VERSION=1.0.7
 
