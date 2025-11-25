@@ -27,10 +27,18 @@ jobs:
               pull_number: context.issue.number,
             });
 
-            const keycloakUpdate = files.some(file =>
-              (file.filename === 'Dockerfile' || file.filename === 'Dockerfile-fips') &&
-              file.patch && file.patch.includes('quay.io/keycloak/keycloak')
-            );
+            const keycloakUpdate = files.some(file => {
+              if (!['Dockerfile', 'Dockerfile-fips'].includes(file.filename)) return false;
+              if (!file.patch) return false;
+
+              return file.patch
+                .split('\n')
+                .some(line =>
+                  /^[+-]/.test(line) &&
+                  (line.includes('KEYCLOAK_VERSION') ||
+                    /quay\.io\/keycloak\/keycloak:\S+/.test(line))
+                );
+            });
 
             core.setOutput('is_keycloak_update', keycloakUpdate);
 
@@ -39,6 +47,21 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.find(comment =>
+              comment.body && comment.body.includes('## Keycloak Upgrade Runbook')
+            );
+
+            if (existingComment) {
+              console.log(`Runbook comment already exists (ID: ${existingComment.id}). Skipping.`);
+              return;
+            }
+
             const comment = `## Keycloak Upgrade Runbook
 
             :warning: **This PR updates the Keycloak base image version and requires manual verification before merge.**
@@ -90,3 +113,5 @@ jobs:
               issue_number: context.issue.number,
               body: comment
             });
+
+            console.log('✅ Runbook comment posted successfully.');
