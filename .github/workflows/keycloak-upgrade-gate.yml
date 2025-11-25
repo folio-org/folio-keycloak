@@ -27,7 +27,7 @@ jobs:
 
             const keycloakUpdate = files.some(file =>
               (file.filename === 'Dockerfile' || file.filename === 'Dockerfile-fips') &&
-              file.patch && file.patch.includes('KEYCLOAK_VERSION')
+              file.patch && file.patch.includes('quay.io/keycloak/keycloak')
             );
 
             console.log(`Keycloak version update detected: ${keycloakUpdate}`);

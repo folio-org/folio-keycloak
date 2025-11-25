@@ -2,7 +2,7 @@ name: Keycloak Upgrade Instructions
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, reopened, synchronize]
     paths:
       - 'Dockerfile'
       - 'Dockerfile-fips'
@@ -29,7 +29,7 @@ jobs:
 
             const keycloakUpdate = files.some(file =>
               (file.filename === 'Dockerfile' || file.filename === 'Dockerfile-fips') &&
-              file.patch && file.patch.includes('KEYCLOAK_VERSION')
+              file.patch && file.patch.includes('quay.io/keycloak/keycloak')
             );
 
             core.setOutput('is_keycloak_update', keycloakUpdate);
