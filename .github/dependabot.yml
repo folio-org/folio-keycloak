@@ -11,10 +11,8 @@ updates:
     allow:
       - dependency-name: "keycloak/keycloak"
     labels:
-      - "dependencies"
-      - "docker"
       - "keycloak-upgrade"
     commit-message:
-      prefix: "deps(docker)"
+      prefix: "keycloak-base-image(docker)"
     pull-request-branch-name:
       separator: "/"

@@ -2,7 +2,7 @@ name: Keycloak Upgrade Gate
 
 on:
   pull_request:
-    types: [opened, synchronize, labeled, unlabeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
   keycloak-upgrade-gate:
@@ -62,11 +62,11 @@ jobs:
 
             if (!hasVerifiedLabel) {
               core.setFailed(
-                '❌ This Keycloak upgrade PR requires manual verification.\n\n' +
+                'This Keycloak upgrade PR requires manual verification.\n\n' +
                 'Please complete all steps in the runbook comment and then add the ' +
                 '`keycloak-verified` label to this PR.\n\n' +
                 'See the PR comment for detailed instructions.'
               );
             } else {
-              console.log('✅ PR has keycloak-verified label. Gate check passed.');
+              console.log('PR has keycloak-verified label. Gate check passed.');
             }

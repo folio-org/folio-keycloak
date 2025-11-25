@@ -72,34 +72,28 @@ jobs:
 
             #### 1. Update and Release folio-keycloak-plugins
 
-            - [ ] Verify \`folio-keycloak-plugins\` has been updated for this Keycloak version
-            - [ ] If not already done, create and merge PR in \`folio-keycloak-plugins\`
+            - [ ] Verify [folio-keycloak-plugins](https://github.com/folio-org/folio-keycloak-plugins) has been updated for this Keycloak version
+            - [ ] If not already done, create and merge PR in [folio-keycloak-plugins](https://github.com/folio-org/folio-keycloak-plugins)
             - [ ] Ensure new plugin version is released to FOLIO Maven repository
+            - [ ] Update this PR (and \`Dockerfile\` if needed) to use the released plugin build so the Keycloak version inside the plugin matches the base image tag
 
             #### 2. Verify Dependent Modules in applications-poc-tools
 
-            - [ ] In \`applications-poc-tools\` repository:
-              - Create a PR that bumps the Keycloak testcontainers/admin client to the same version
-              - Add label \`keycloak-upgrade\` to that PR
-              - Wait for the \`verify-dependent-modules\` workflow to pass for **all** dependent modules
+            - [ ] In [applications-poc-tools](https://github.com/folio-org/applications-poc-tools):
+              - Create a PR that bumps the Keycloak testcontainers to this version and the admin client library to the release that matches this Keycloak version
+              - Wait for the \`verify-dependent-modules\` workflow to pass for **all** dependent modules; **investigate and fix** any failures before proceeding
               - Merge the \`applications-poc-tools\` PR once verification passes
 
             #### 3. Environment Testing
 
-            - [ ] Recreate the Keycloak environment using this branch
-            - [ ] Run required smoke tests:
-              - Login flow (username/password and SSO)
-              - Token exchange and impersonation
-              - Multi-tenant realm operations
-              - Lightweight token generation
-              - Module-to-module authentication
+            - [ ] Recreate the Rancher dev environment using this branch (doc: [How to deploy and test folio-kong and folio-keycloak from branch](https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch))
 
             #### 4. Final Approval
 
             - [ ] All above steps completed successfully
             - [ ] Add label \`keycloak-verified\` to this PR
-            - [ ] The \`keycloak-upgrade-gate\` status check will pass automatically
-            - [ ] Merge this PR
+              - The \`keycloak-upgrade-gate\` status check will pass automatically
+              - Merge this PR
 
             ---
 
@@ -114,4 +108,4 @@ jobs:
               body: comment
             });
 
-            console.log('✅ Runbook comment posted successfully.');
+            console.log('Runbook comment posted successfully.');
