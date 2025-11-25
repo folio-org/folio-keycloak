@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository uses Dependabot to automatically detect new Keycloak releases and create pull requests. However, Keycloak upgrades require careful coordination with dependent repositories and thorough testing before deployment. This document describes the automated safety gates and manual verification process.
+Dependabot creates PRs when the Keycloak base image tag changes. These upgrades need coordination with plugins and downstream modules plus manual testing. This guide summarizes what the automation does and what you need to verify before merging.
 
 ## Automated Components
 
@@ -10,44 +10,45 @@ This repository uses Dependabot to automatically detect new Keycloak releases an
 
 Dependabot is configured (`.github/dependabot.yml`) to:
 - Monitor the Keycloak base image (`quay.io/keycloak/keycloak`) weekly
-- Create PRs that update `ARG KEYCLOAK_VERSION` in `Dockerfile` and `Dockerfile-fips`
+- Create PRs that update the Keycloak base image tag in `Dockerfile` and `Dockerfile-fips`
 - Automatically label PRs with `dependencies`, `docker`, and `keycloak-upgrade`
 
 ### 2. Automatic Runbook Comment
 
-When Dependabot creates a Keycloak upgrade PR, the `keycloak-upgrade-instructions` workflow automatically posts a comment with the complete verification runbook (`.github/workflows/keycloak-upgrade-instructions.yml`).
+When Dependabot creates a Keycloak upgrade PR, the `keycloak-upgrade-instructions` workflow posts a runbook comment with the verification steps (`.github/workflows/keycloak-upgrade-instructions.yml`).
 
 ### 3. Merge Gate
 
 The `keycloak-upgrade-gate` workflow (`.github/workflows/keycloak-upgrade-gate.yml`) enforces that:
 - Keycloak upgrade PRs **cannot be merged** until they have the `keycloak-verified` label
-- The workflow runs on every PR event (open, update, label change)
+- The workflow runs on PR open/update/label changes
 - The job name is stable (`keycloak-upgrade-gate`) for use in branch protection
 
 ## Manual Verification Process
 
-When a Keycloak upgrade PR is created, follow these steps in order:
+When a Keycloak upgrade PR is created, follow these steps:
 
 ### Step 1: Update folio-keycloak-plugins
 
 The Keycloak plugins must be compatible with the new Keycloak version:
 
-1. Check if `folio-keycloak-plugins` has already been updated for this version
-2. If not, create and merge a PR in the `folio-keycloak-plugins` repository
-3. Ensure the new plugin version is released to the FOLIO Maven repository
-4. Update `Dockerfile` if needed to reference the new plugin version
+1. Check if [`folio-keycloak-plugins`](https://github.com/folio-org/folio-keycloak-plugins) has already been updated for this version.
+2. If not, create and merge a PR in `folio-keycloak-plugins`.
+3. Ensure the new plugin version is released to the FOLIO Maven repository.
+4. Update this PR to use the released plugin build so the Keycloak version inside the plugin matches the base image tag.
+5. Update `Dockerfile` if needed to reference the new plugin version.
 
 ### Step 2: Verify Dependent Modules
 
 The Keycloak upgrade affects multiple FOLIO modules. Test them through `applications-poc-tools`:
 
-1. In the `applications-poc-tools` repository, create a PR that:
+1. In [`applications-poc-tools`](https://github.com/folio-org/applications-poc-tools), create a PR that:
    - Bumps the Keycloak testcontainers version to match this upgrade
-   - Bumps the Keycloak admin client version to match this upgrade
-   - Add label `keycloak-upgrade` to trigger dependent module testing
+   - Updates the Keycloak admin client library to the version compatible with this Keycloak release (use the admin client artifact published for this server version)
 
 2. Wait for the `verify-dependent-modules` workflow to complete successfully
    - This workflow tests all FOLIO modules that depend on Keycloak
+   - If the workflow fails, **investigate and fix** the failures before proceeding
    - All tests must pass before proceeding
 
 3. Merge the `applications-poc-tools` PR once verification passes
@@ -56,18 +57,17 @@ The Keycloak upgrade affects multiple FOLIO modules. Test them through `applicat
 
 Deploy and test the new Keycloak version in a test environment:
 
-1. Build the Docker image from the upgrade PR branch
-2. Deploy to a test environment (or recreate locally)
+1. Build the Docker image from the upgrade PR branch and recreate the Keycloak environment following the FOLIO how-to: [How to deploy and test folio-kong and folio-keycloak from branch](https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch)
+2. Deploy to a test environment (or recreate locally).
 3. Run smoke tests covering:
-   - **Login flows**: Username/password authentication and SSO
-   - **Token operations**: Token exchange, impersonation, and refresh
-   - **Multi-tenancy**: Create/update/delete realms and clients
-   - **Lightweight tokens**: Verify token generation and size
-   - **Module authentication**: Module-to-module service account flows
-   - **Admin operations**: Realm configuration via admin API
-
-4. Check logs for errors or deprecation warnings
-5. Verify performance and resource usage
+   - Login flows: Username/password authentication and SSO
+   - Token operations: Token exchange, impersonation, and refresh
+   - Multi-tenancy: Create/update/delete realms and clients
+   - Lightweight tokens: Verify token generation and size
+   - Module authentication: Module-to-module service account flows
+   - Admin operations: Realm configuration via admin API
+4. Check logs for errors or deprecation warnings.
+5. Verify performance and resource usage.
 
 ### Step 4: Approve and Merge
 
@@ -82,7 +82,7 @@ Once all verification steps are complete:
 
 To enforce the merge gate, repository maintainers must configure branch protection:
 
-1. Go to repository **Settings** → **Branches**
+1. Go to repository **Settings** -> **Branches**
 2. Edit the branch protection rule for `master` (or `main`)
 3. Under **Require status checks to pass before merging**:
    - Enable **Require status checks to pass**
@@ -98,7 +98,7 @@ This ensures that Keycloak Dependabot PRs **cannot be merged** without:
 ### Dependabot PR doesn't trigger the workflows
 
 - Check that the PR modifies `Dockerfile` or `Dockerfile-fips`
-- Verify that the change includes `KEYCLOAK_VERSION`
+- Verify that the change updates the Keycloak base image tag (`quay.io/keycloak/keycloak`)
 - Ensure the PR author is `dependabot[bot]`
 
 ### Gate workflow fails even with label
@@ -133,4 +133,3 @@ If issues are discovered after merging:
 - [Keycloak Release Notes](https://www.keycloak.org/docs/latest/release_notes/)
 - [FOLIO Keycloak Plugins Repository](https://github.com/folio-org/folio-keycloak-plugins)
 - [Main README](../README.md) - General repository information
-- [CLAUDE.md](../CLAUDE.md) - Architecture and development guidance
