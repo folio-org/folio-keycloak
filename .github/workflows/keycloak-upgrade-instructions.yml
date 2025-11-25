@@ -1,0 +1,92 @@
+name: Keycloak Upgrade Instructions
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - 'Dockerfile'
+      - 'Dockerfile-fips'
+
+jobs:
+  add-runbook-comment:
+    # Only run for Dependabot PRs that modify Keycloak version
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Check if PR updates Keycloak
+        id: check-keycloak
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const keycloakUpdate = files.some(file =>
+              (file.filename === 'Dockerfile' || file.filename === 'Dockerfile-fips') &&
+              file.patch && file.patch.includes('KEYCLOAK_VERSION')
+            );
+
+            core.setOutput('is_keycloak_update', keycloakUpdate);
+
+      - name: Post runbook comment
+        if: steps.check-keycloak.outputs.is_keycloak_update == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## Keycloak Upgrade Runbook
+
+            :warning: **This PR updates the Keycloak base image version and requires manual verification before merge.**
+
+            ### Pre-Merge Checklist
+
+            Complete these steps in order:
+
+            #### 1. Update and Release folio-keycloak-plugins
+
+            - [ ] Verify \`folio-keycloak-plugins\` has been updated for this Keycloak version
+            - [ ] If not already done, create and merge PR in \`folio-keycloak-plugins\`
+            - [ ] Ensure new plugin version is released to FOLIO Maven repository
+
+            #### 2. Verify Dependent Modules in applications-poc-tools
+
+            - [ ] In \`applications-poc-tools\` repository:
+              - Create a PR that bumps the Keycloak testcontainers/admin client to the same version
+              - Add label \`keycloak-upgrade\` to that PR
+              - Wait for the \`verify-dependent-modules\` workflow to pass for **all** dependent modules
+              - Merge the \`applications-poc-tools\` PR once verification passes
+
+            #### 3. Environment Testing
+
+            - [ ] Recreate the Keycloak environment using this branch
+            - [ ] Run required smoke tests:
+              - Login flow (username/password and SSO)
+              - Token exchange and impersonation
+              - Multi-tenant realm operations
+              - Lightweight token generation
+              - Module-to-module authentication
+
+            #### 4. Final Approval
+
+            - [ ] All above steps completed successfully
+            - [ ] Add label \`keycloak-verified\` to this PR
+            - [ ] The \`keycloak-upgrade-gate\` status check will pass automatically
+            - [ ] Merge this PR
+
+            ---
+
+            **Note:** The \`keycloak-upgrade-gate\` workflow will block merging until the \`keycloak-verified\` label is applied.
+
+            For detailed information, see \`docs/keycloak-upgrade.md\`.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
