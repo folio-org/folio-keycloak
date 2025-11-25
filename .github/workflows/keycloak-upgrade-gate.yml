@@ -3,14 +3,16 @@ name: Keycloak Upgrade Gate
 on:
   pull_request:
     types: [opened, synchronize, labeled, unlabeled]
-    paths:
-      - 'Dockerfile'
-      - 'Dockerfile-fips'
 
 jobs:
   keycloak-upgrade-gate:
-    # Only run for Dependabot PRs that modify Keycloak-related files
-    if: github.actor == 'dependabot[bot]'
+    # Only run for Dependabot Keycloak PRs (with keycloak-upgrade label)
+    if: |
+      github.actor == 'dependabot[bot]' && (
+        github.event.action == 'labeled' ||
+        github.event.action == 'unlabeled' ||
+        contains(github.event.pull_request.labels.*.name, 'keycloak-upgrade')
+      )
     runs-on: ubuntu-latest
 
     steps:
@@ -25,10 +27,18 @@ jobs:
               pull_number: context.issue.number,
             });
 
-            const keycloakUpdate = files.some(file =>
-              (file.filename === 'Dockerfile' || file.filename === 'Dockerfile-fips') &&
-              file.patch && file.patch.includes('quay.io/keycloak/keycloak')
-            );
+            const keycloakUpdate = files.some(file => {
+              if (!['Dockerfile', 'Dockerfile-fips'].includes(file.filename)) return false;
+              if (!file.patch) return false;
+
+              return file.patch
+                .split('\n')
+                .some(line =>
+                  /^[+-]/.test(line) &&
+                  (line.includes('KEYCLOAK_VERSION') ||
+                    /quay\.io\/keycloak\/keycloak:\S+/.test(line))
+                );
+            });
 
             console.log(`Keycloak version update detected: ${keycloakUpdate}`);
             core.setOutput('is_keycloak_update', keycloakUpdate);
@@ -60,8 +70,3 @@ jobs:
             } else {
               console.log('✅ PR has keycloak-verified label. Gate check passed.');
             }
-
-      - name: Non-Keycloak update detected
-        if: steps.check-keycloak.outputs.is_keycloak_update != 'true'
-        run: |
-          echo "This Dependabot PR does not update Keycloak version. Skipping gate check."
