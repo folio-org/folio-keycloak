@@ -46,6 +46,11 @@ The Keycloak upgrade affects multiple FOLIO modules. Test them through `applicat
    - Bumps the Keycloak testcontainers version to match this upgrade
    - Updates the Keycloak admin client library to the version compatible with this Keycloak release (use the admin client artifact published for this server version)
 
+   Practical guidance:
+   - Use the latest published admin client for this major line (for 26.x, use 26.0.7 as of now)
+   - Watch Keycloak release notes for admin client breaking changes
+   - Admin client artifacts on Maven Central: [keycloak-admin-client](https://repo1.maven.org/maven2/org/keycloak/keycloak-admin-client/)
+
 2. Wait for the `verify-dependent-modules` workflow to complete successfully
    - This workflow tests all FOLIO modules that depend on Keycloak
    - If the workflow fails, **investigate and fix** the failures before proceeding

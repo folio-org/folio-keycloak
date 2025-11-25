@@ -75,12 +75,12 @@ jobs:
             - [ ] Verify [folio-keycloak-plugins](https://github.com/folio-org/folio-keycloak-plugins) has been updated for this Keycloak version
             - [ ] If not already done, create and merge PR in [folio-keycloak-plugins](https://github.com/folio-org/folio-keycloak-plugins)
             - [ ] Ensure new plugin version is released to FOLIO Maven repository
-            - [ ] Update this PR (and \`Dockerfile\` if needed) to use the released plugin build so the Keycloak version inside the plugin matches the base image tag
+            - [ ] Update this PR (\`Dockerfile\` and \`Dockerfile-fips\` plugin version) to use the released plugin build so the Keycloak version inside the plugin matches the base image tag
 
             #### 2. Verify Dependent Modules in applications-poc-tools
 
             - [ ] In [applications-poc-tools](https://github.com/folio-org/applications-poc-tools):
-              - Create a PR that bumps the Keycloak testcontainers to this version and the admin client library to the release that matches this Keycloak version
+              - Create a PR that bumps the Keycloak testcontainers to this version and the admin client library to the latest available for this major (e.g., 26.x -> 26.0.7 currently; artifacts: [keycloak-admin-client](https://repo1.maven.org/maven2/org/keycloak/keycloak-admin-client/))
               - Wait for the \`verify-dependent-modules\` workflow to pass for **all** dependent modules; **investigate and fix** any failures before proceeding
               - Merge the \`applications-poc-tools\` PR once verification passes
 
