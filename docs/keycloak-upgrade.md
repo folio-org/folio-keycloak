@@ -28,6 +28,8 @@ The `keycloak-upgrade-gate` workflow (`.github/workflows/keycloak-upgrade-gate.y
 
 When a Keycloak upgrade PR is created, follow these steps:
 
+- Review the [Keycloak Upgrade Guide](https://www.keycloak.org/docs/latest/upgrading/) for this release and note potential breaking changes.
+
 ### Step 1: Update folio-keycloak-plugins
 
 The Keycloak plugins must be compatible with the new Keycloak version:
