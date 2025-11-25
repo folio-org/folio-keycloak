@@ -9,12 +9,12 @@ updates:
       time: "09:00"
     # Only allow updates to the Keycloak base image
     allow:
-      - dependency-name: "quay.io/keycloak/keycloak"
+      - dependency-name: "keycloak/keycloak"
     labels:
       - "dependencies"
       - "docker"
       - "keycloak-upgrade"
     commit-message:
-      prefix: "deps"
-      prefix-development: "deps"
-      include: "scope"
+      prefix: "deps(docker)"
+    pull-request-branch-name:
+      separator: "/"
