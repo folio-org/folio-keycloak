@@ -6,7 +6,7 @@ A docker image for keycloak installation
 
 ## Keycloak Upgrades
 
-See `docs/keycloak-upgrade.md` for the runbook and merge gate details.
+See [docs/keycloak-upgrade.md](docs/keycloak-upgrade.md) for the runbook and merge gate details.
 
 ## Add custom theme 
 
