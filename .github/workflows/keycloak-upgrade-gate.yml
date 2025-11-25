@@ -6,12 +6,12 @@ on:
 
 jobs:
   keycloak-upgrade-gate:
-    # Only run for Dependabot Keycloak PRs (with keycloak-upgrade label)
+    # Only run for Keycloak PRs (with keycloak-upgrade label)
     if: |
-      github.actor == 'dependabot[bot]' && (
+      contains(github.event.pull_request.labels.*.name, 'keycloak-upgrade') && (
+        github.actor == 'dependabot[bot]' ||
         github.event.action == 'labeled' ||
-        github.event.action == 'unlabeled' ||
-        contains(github.event.pull_request.labels.*.name, 'keycloak-upgrade')
+        github.event.action == 'unlabeled'
       )
     runs-on: ubuntu-latest
 
