@@ -82,7 +82,7 @@ jobs:
             #### 2. Verify Dependent Modules in applications-poc-tools
 
             - [ ] In [applications-poc-tools](https://github.com/folio-org/applications-poc-tools):
-              - Create a PR that bumps the Keycloak testcontainers to this version and the admin client library to the latest available for this major (e.g., 26.x -> 26.0.7 currently; artifact: [keycloak-admin-client](https://repo1.maven.org/maven2/org/keycloak/keycloak-admin-client/))
+              - Create a PR that bumps the Keycloak testcontainers to this version and the admin client library to the latest available for this major (e.g., 26.x -> 26.0.7 currently; artifact: [keycloak-admin-client](https://mvnrepository.com/artifact/org.keycloak/keycloak-admin-client))
               - Wait for the \`verify-dependent-modules\` workflow to pass for **all** dependent modules; **investigate and fix** any failures before proceeding
               - Merge the \`applications-poc-tools\` PR once verification passes
 
