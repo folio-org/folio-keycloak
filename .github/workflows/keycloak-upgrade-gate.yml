@@ -7,12 +7,7 @@ on:
 jobs:
   keycloak-upgrade-gate:
     # Only run for Keycloak PRs (with keycloak-upgrade label)
-    if: |
-      contains(github.event.pull_request.labels.*.name, 'keycloak-upgrade') && (
-        github.actor == 'dependabot[bot]' ||
-        github.event.action == 'labeled' ||
-        github.event.action == 'unlabeled'
-      )
+    if: contains(github.event.pull_request.labels.*.name, 'keycloak-upgrade')
     runs-on: ubuntu-latest
 
     steps:
