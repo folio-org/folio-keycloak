@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Monitor Keycloak base image updates in Dockerfiles
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    # Only allow updates to the Keycloak base image
+    allow:
+      - dependency-name: "keycloak/keycloak"
+    labels:
+      - "keycloak-upgrade"
+    commit-message:
+      prefix: "keycloak-base-image(docker)"
+    pull-request-branch-name:
+      separator: "/"

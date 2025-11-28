@@ -1,0 +1,67 @@
+name: Keycloak Upgrade Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  keycloak-upgrade-gate:
+    # Only run for Keycloak PRs (with keycloak-upgrade label)
+    if: contains(github.event.pull_request.labels.*.name, 'keycloak-upgrade')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check if PR updates Keycloak version
+        id: check-keycloak
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const keycloakUpdate = files.some(file => {
+              if (!['Dockerfile', 'Dockerfile-fips'].includes(file.filename)) return false;
+              if (!file.patch) return false;
+
+              return file.patch
+                .split('\n')
+                .some(line =>
+                  /^[+-]/.test(line) &&
+                  (line.includes('KEYCLOAK_VERSION') ||
+                    /quay\.io\/keycloak\/keycloak:\S+/.test(line))
+                );
+            });
+
+            console.log(`Keycloak version update detected: ${keycloakUpdate}`);
+            core.setOutput('is_keycloak_update', keycloakUpdate);
+
+      - name: Verify keycloak-verified label is present
+        if: steps.check-keycloak.outputs.is_keycloak_update == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const labels = pullRequest.labels.map(label => label.name);
+            const hasVerifiedLabel = labels.includes('keycloak-verified');
+
+            console.log(`PR labels: ${labels.join(', ')}`);
+            console.log(`Has keycloak-verified label: ${hasVerifiedLabel}`);
+
+            if (!hasVerifiedLabel) {
+              core.setFailed(
+                'This Keycloak upgrade PR requires manual verification.\n\n' +
+                'Please complete all steps in the runbook comment and then add the ' +
+                '`keycloak-verified` label to this PR.\n\n' +
+                'See the PR comment for detailed instructions.'
+              );
+            } else {
+              console.log('PR has keycloak-verified label. Gate check passed.');
+            }
