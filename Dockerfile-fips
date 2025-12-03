@@ -8,9 +8,10 @@ WORKDIR /tmp/keycloak-providers-jars
 ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.4.1
 
 # Bouncy Castle JAR versions to download
-ARG BC_FIPS_VERSION=1.0.2.6
-ARG BCTLS_FIPS_VERSION=1.0.19
-ARG BCPKIX_FIPS_VERSION=1.0.7
+ARG BC_FIPS_VERSION=2.1.2
+ARG BCTLS_FIPS_VERSION=2.1.22
+ARG BCPKIX_FIPS_VERSION=2.1.10
+ARG BCUTIL_FIPS_VERSION=2.1.5
 
 ARG FOLIO_MAVEN_URL=https://repository.folio.org/repository/maven-releases
 ARG BC_MAVEN_URL=https://repo1.maven.org/maven2/org/bouncycastle
@@ -19,7 +20,8 @@ ARG BC_MAVEN_URL=https://repo1.maven.org/maven2/org/bouncycastle
 RUN wget ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-detect-folio-user/${KCPLUG_DETECT_FOLIO_USER_VERSION}/keycloak-detect-folio-user-${KCPLUG_DETECT_FOLIO_USER_VERSION}.jar \
  && wget ${BC_MAVEN_URL}/bc-fips/${BC_FIPS_VERSION}/bc-fips-${BC_FIPS_VERSION}.jar \
  && wget ${BC_MAVEN_URL}/bctls-fips/${BCTLS_FIPS_VERSION}/bctls-fips-${BCTLS_FIPS_VERSION}.jar \
- && wget ${BC_MAVEN_URL}/bcpkix-fips/${BCPKIX_FIPS_VERSION}/bcpkix-fips-${BCPKIX_FIPS_VERSION}.jar
+ && wget ${BC_MAVEN_URL}/bcpkix-fips/${BCPKIX_FIPS_VERSION}/bcpkix-fips-${BCPKIX_FIPS_VERSION}.jar \
+ && wget ${BC_MAVEN_URL}/bcutil-fips/${BCUTIL_FIPS_VERSION}/bcutil-fips-${BCUTIL_FIPS_VERSION}.jar
 
 FROM quay.io/keycloak/keycloak:26.4.6 AS builder
 
