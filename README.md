@@ -6,7 +6,7 @@ A docker image for keycloak installation
 
 ## Version Compatibility
 
-This table documents tested compatibility between folio-keycloak and FOLIO releases. Other combinations may work but are not guaranteed.
+This table documents tested compatibility between folio-keycloak and FOLIO releases.  Not all combinations have been tested.  Combinations not explicitly stated may work, but are not guaranteed.
 
 | folio-keycloak | Compatible With                      | Not Compatible With         |
 |----------------|--------------------------------------|-----------------------------|
