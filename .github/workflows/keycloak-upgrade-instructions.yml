@@ -90,7 +90,14 @@ jobs:
 
             - [ ] Recreate the Rancher dev environment using this branch (doc: [How to deploy and test folio-kong and folio-keycloak from branch](https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch))
 
-            #### 4. Final Approval
+            #### 4. Update Compatibility Documentation
+
+            - [ ] Update README.md compatibility table:
+              - Add new row with "Compatible With" set to the tested FOLIO release if minor or major Keycloak version changed
+              - Add any discovered incompatibilities to "Not Compatible With" column
+            - [ ] Update NEWS.md with version entry and key changes
+
+            #### 5. Final Approval
 
             - [ ] All above steps completed successfully
             - [ ] Add label \`keycloak-verified\` to this PR

@@ -76,7 +76,32 @@ Deploy and test the new Keycloak version in a test environment:
 4. Check logs for errors or deprecation warnings.
 5. Verify performance and resource usage.
 
-### Step 4: Approve and Merge
+### Step 4: Update Documentation
+
+Before merging, update compatibility documentation:
+
+1. **Update NEWS.md**:
+   - Add new version entry at the top
+   - List key changes with JIRA issue links
+
+2. **Update README.md compatibility matrix**:
+   - Add new row with "Compatible With" set to the tested FOLIO release if minor or major Keycloak version changed
+   - Add any discovered incompatibilities to "Not Compatible With" column
+
+**Example compatibility table update**:
+```markdown
+| folio-keycloak | Compatible With | Not Compatible With |
+|----------------|-----------------|---------------------|
+| v26.5.x        | Sunflower CSP5+ |                     |
+```
+
+**Example notes**:
+```markdown
+**v26.5.x**
+- Some very important note here.
+```
+
+### Step 5: Approve and Merge
 
 Once all verification steps are complete:
 
