@@ -5,7 +5,7 @@ FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 WORKDIR /tmp/keycloak-providers-jars
 
 # FOLIO Keycloak plugins versions to download
-ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.4.1
+ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.5.0
 
 # Bouncy Castle JAR versions to download
 ARG BC_FIPS_VERSION=2.1.2
