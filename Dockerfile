@@ -5,14 +5,14 @@ FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 WORKDIR /tmp/keycloak-providers-jars
 
 # FOLIO Keycloak plugins versions to download
-ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.4.1
+ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.5.0
 
 ARG FOLIO_MAVEN_URL=https://repository.folio.org/repository/maven-releases
 
 # Download plugin JAR files
 RUN wget ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-detect-folio-user/${KCPLUG_DETECT_FOLIO_USER_VERSION}/keycloak-detect-folio-user-${KCPLUG_DETECT_FOLIO_USER_VERSION}.jar
 
-FROM quay.io/keycloak/keycloak:26.4.6 AS builder
+FROM quay.io/keycloak/keycloak:26.5.2 AS builder
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -27,7 +27,7 @@ COPY --chown=keycloak:keycloak cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn
 
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM quay.io/keycloak/keycloak:26.4.6
+FROM quay.io/keycloak/keycloak:26.5.2
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 

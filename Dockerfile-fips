@@ -5,7 +5,7 @@ FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 WORKDIR /tmp/keycloak-providers-jars
 
 # FOLIO Keycloak plugins versions to download
-ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.4.1
+ARG KCPLUG_DETECT_FOLIO_USER_VERSION=26.5.0
 
 # Bouncy Castle JAR versions to download
 ARG BC_FIPS_VERSION=2.1.2
@@ -23,7 +23,7 @@ RUN wget ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-detect-folio-user/
  && wget ${BC_MAVEN_URL}/bcpkix-fips/${BCPKIX_FIPS_VERSION}/bcpkix-fips-${BCPKIX_FIPS_VERSION}.jar \
  && wget ${BC_MAVEN_URL}/bcutil-fips/${BCUTIL_FIPS_VERSION}/bcutil-fips-${BCUTIL_FIPS_VERSION}.jar
 
-FROM quay.io/keycloak/keycloak:26.4.6 AS builder
+FROM quay.io/keycloak/keycloak:26.5.2 AS builder
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -39,7 +39,7 @@ COPY --chown=keycloak:keycloak cache-ispn-jdbc.xml /opt/keycloak/conf/cache-ispn
 
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM quay.io/keycloak/keycloak:26.4.6
+FROM quay.io/keycloak/keycloak:26.5.2
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 
