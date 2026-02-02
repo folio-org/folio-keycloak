@@ -47,7 +47,7 @@ docker build -t folio-keycloak .
 | KC_FOLIO_BE_ADMIN_CLIENT_SECRET  |   true   | -                                                               | Folio backend client secret |
 | KC_HTTPS_KEY_STORE_TYPE          |  false   | BCFKS                                                           | Keystore type               |
 | KC_HTTPS_KEY_STORE               |  false   | /opt/keycloak/conf/test.server.keystore                         | Keystore file               |
-| KC_HTTPS_KEY_STORE_PASSWORD      |   true   | -                                                               | Keystore password           |
+| KC_HTTPS_KEY_STORE_PASSWORD      |   true   | SecretPassword                                                  | Keystore password           |
 | KCADM_HTTPS_TRUST_STORE_TYPE     |  false   | BCFKS                                                           | Truststore type             |
 | KCADM_HTTPS_TRUST_STORE          |  false   | /opt/keycloak/conf/test.server.truststore                       | Truststore file             |
 | KCADM_HTTPS_TRUST_STORE_PASSWORD |   true   | SecretPassword                                                  | Truststore password         |
