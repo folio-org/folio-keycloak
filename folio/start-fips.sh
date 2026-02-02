@@ -17,9 +17,12 @@ echo "Starting in FIPS mode"
 /opt/keycloak/bin/kc.sh start \
  --optimized \
  --http-enabled="${KC_HTTP_ENABLED:-false}" \
- --https-key-store-type=BCFKS \
+ --https-key-store-type="${KC_HTTPS_KEY_STORE_TYPE:-BCFKS}" \
  --https-key-store-file="${KC_HTTPS_KEY_STORE:-/opt/keycloak/conf/test.server.keystore}" \
  --https-key-store-password=${KC_HTTPS_KEY_STORE_PASSWORD:-SecretPassword} \
+ --https-trust-store-type="${KCADM_HTTPS_TRUST_STORE_TYPE:-BCFKS}" \
+ --https-trust-store-file="${KCADM_HTTPS_TRUST_STORE:-/opt/keycloak/conf/test.server.truststore}" \
+ --https-trust-store-password="${KCADM_HTTPS_TRUST_STORE_PASSWORD:-SecretPassword}" \
  --spi-password-hashing-pbkdf2-sha256-max-padding-length=14 \
  --cache="$kcCache" \
  --cache-config-file="$kcCacheConfigFile" \
