@@ -3,6 +3,7 @@
 ## Version `v26.5.0` (in progress)
 * Update compatibility documentation in README.md and NEWS.md (KEYCLOAK-96)
 * Update to Keycloak 26.5.2 (KEYCLOAK-95)
+* Replace hardcoded `keycloak-ecs-folio-authenticator` plugin by downloaded one 
 
 ## Version `v26.4.3` (22.12.2025)
 * Include ECS authentication plugin into the FIPS Dockerfile (KEYCLOAK-93)
