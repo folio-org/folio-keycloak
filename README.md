@@ -53,8 +53,12 @@ docker build -t folio-keycloak .
 |:---------------------------------|:--------:|:----------------------------------------------------------------|:----------------------------|
 | KC_FOLIO_BE_ADMIN_CLIENT_ID      |  false   | folio-backend-admin-client                                      | Folio backend client id     |
 | KC_FOLIO_BE_ADMIN_CLIENT_SECRET  |   true   | -                                                               | Folio backend client secret |
-| KC_HTTPS_KEY_STORE_PASSWORD      |   true   | -                                                               | BCFSK Keystore password     |
-| KCADM_HTTPS_TRUST_STORE_PASSWORD |  false   | SecretPassword                                                  | Truststore password         |
+| KC_HTTPS_KEY_STORE_TYPE          |  false   | BCFKS                                                           | Keystore type               |
+| KC_HTTPS_KEY_STORE               |  false   | /opt/keycloak/conf/test.server.keystore                         | Keystore file               |
+| KC_HTTPS_KEY_STORE_PASSWORD      |   true   | SecretPassword                                                  | Keystore password           |
+| KCADM_HTTPS_TRUST_STORE_TYPE     |  false   | BCFKS                                                           | Truststore type             |
+| KCADM_HTTPS_TRUST_STORE          |  false   | /opt/keycloak/conf/test.server.truststore                       | Truststore file             |
+| KCADM_HTTPS_TRUST_STORE_PASSWORD |   true   | SecretPassword                                                  | Truststore password         |
 | KC_LOG_LEVEL                     |  false   | INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE | Keycloak log level          |
 
 ## Setup Admin Client [setup-admin-client.sh](folio/setup-admin-client.sh)
