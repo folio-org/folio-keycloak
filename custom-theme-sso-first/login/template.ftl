@@ -7,7 +7,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="robots" content="noindex, nofollow">
     <link href="${url.resourcesPath}/css/login.css" rel="stylesheet" />
-
+    
     <#if properties.meta?has_content>
         <#list properties.meta?split(' ') as meta>
             <meta name="${meta?split('==')[0]}" content="${meta?split('==')[1]}"/>
@@ -46,8 +46,8 @@
     <div class="${properties.kcFormCardClass!}">
         <div class="${properties.kcLogoBlock!}">
             <div class="${properties.kcLogoImageWrapper}">
-              <img src="${properties.baseLogoFilesURL}/${realm.name}/logo.png" alt="${realm.name}"/>
-            </div>
+            <img src="${properties.baseLogoFilesURL}/${realm.name}/logo.png" alt="${realm.name}"/>
+            </div> 
         </div>
         <header class="${properties.kcFormHeaderClass!}">
             <#if realm.internationalizationEnabled  && locale.supported?size gt 1>
