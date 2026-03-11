@@ -106,3 +106,6 @@ input:focus {
   margin: 0 auto;
 }
 
+#kc-social-providers .pf-c-button.pf-m-primary {
+  padding-top: 16px;
+}
