@@ -46,7 +46,7 @@
     <div class="${properties.kcFormCardClass!}">
         <div class="${properties.kcLogoBlock!}">
             <div class="${properties.kcLogoImageWrapper}">
-            <img src="https://nla-dev.folio.ebsco.com/20251111-155237/img/logo.8735f133473bfa1e07a5..png" alt="${realm.name}"/>
+              <img src="${properties.baseLogoFilesURL}/${realm.name}/logo.png" alt="${realm.name}"/>
             </div>
         </div>
         <header class="${properties.kcFormHeaderClass!}">
