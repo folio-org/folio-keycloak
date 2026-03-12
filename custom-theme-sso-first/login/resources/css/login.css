@@ -108,4 +108,6 @@ input:focus {
 
 #kc-social-providers .pf-c-button.pf-m-primary {
   padding-top: 16px;
+  margin: 5px 0;
 }
+
