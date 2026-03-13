@@ -37,6 +37,7 @@ COPY --chown=keycloak:keycloak folio/setup-admin-client.sh /opt/keycloak/bin/fol
 COPY --chown=keycloak:keycloak folio/start.sh /opt/keycloak/bin/folio/
 COPY --chown=keycloak:keycloak custom-theme /opt/keycloak/themes/custom-theme
 COPY --chown=keycloak:keycloak custom-theme-sso-only /opt/keycloak/themes/custom-theme-sso-only
+COPY --chown=keycloak:keycloak custom-theme-sso-first /opt/keycloak/themes/custom-theme-sso-first
 
 USER root
 RUN chmod -R 550 /opt/keycloak/bin/folio
