@@ -174,3 +174,39 @@ If any operation fails (client not found, API error, etc.), outputs a warning in
 - **Safe for reruns:** existing mappers and policies are updated, not duplicated
 - Ensure your Keycloak admin user has sufficient permissions
 - Always test in staging before running in production
+
+## Remove Unused Authorization Objects [remove-unused-authz-objects.sh](keycloak-scripts/remove-unused-authz-objects.sh)
+
+Script to identify and remove Keycloak Authorization policies and permissions that reference roles that no longer exist.
+
+### What the Script Does
+
+- **Identifies Dead Role Policies:** Finds policies of type 'role' where all referenced roles have been deleted.
+- **Identifies Dead Permissions:** Finds 'scope' or 'resource' permissions that exclusively use the identified dead policies.
+- **Paginated Processing:** Safely handles environments with thousands of authorization objects using REST API pagination.
+- **Dry-Run Mode:** By default, it only previews what would be deleted without making any changes.
+- **Summary Report:** Provides a detailed count of processed realms, checked clients, and found/deleted resources.
+
+### Requirements
+
+- Keycloak Admin REST API access
+- Keycloak admin username and password
+- Bash shell (3.2+ compatible)
+- Required tools: `curl`, `jq`
+
+### Usage
+
+**1. Set environment variables (optional):**
+
+```bash
+export KEYCLOAK_URL="http://localhost:8080"
+export CLIENT_ID_PATTERN="-application$" # Regex pattern to filter clients
+export DRY_RUN="true" # Set to "false" to perform actual deletions
+export PAGE_SIZE=100  # Number of items per API request
+```
+
+**2. Run the script:**
+
+```bash
+./keycloak-scripts/remove-unused-authz-objects.sh <admin_username> <admin_password>
+```
