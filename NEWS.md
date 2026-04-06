@@ -1,6 +1,7 @@
 # Release Notes
+## Version `v26.5.4` (in progress)
 
-## Version `v26.5.3` (in progress)
+## Version `v26.5.3` (06.04.2026)
 * Update to Keycloak 26.5.7 and folio-keycloak-plugin to 26.5.4 (KEYCLOAK-102)
 
 ## Version `v26.5.0` (05.02.2026)
