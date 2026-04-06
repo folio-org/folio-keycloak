@@ -1,6 +1,9 @@
 # Release Notes
 
-## Version `v26.5.0` (in progress)
+## Version `v26.5.3` (in progress)
+* Update to Keycloak 26.5.7 and folio-keycloak-plugin to 26.5.4 (KEYCLOAK-102)
+
+## Version `v26.5.0` (05.02.2026)
 * Update compatibility documentation in README.md and NEWS.md (KEYCLOAK-96)
 * Update to Keycloak 26.5.2 (KEYCLOAK-95)
 * Replace hardcoded `keycloak-ecs-folio-authenticator` plugin by downloaded one 
