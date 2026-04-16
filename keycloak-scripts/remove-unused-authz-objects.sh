@@ -66,8 +66,15 @@ for realm in "${REALMS[@]}"; do
   ((++TOTAL_REALMS_PROCESSED))
   echo "Processing realm: $realm"
 
-  clients=$(curl -s -H "Authorization: Bearer $TOKEN" "${KEYCLOAK_URL}/admin/realms/${realm}/clients")
-  
+  clients=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN" "${KEYCLOAK_URL}/admin/realms/${realm}/clients")
+  http_code=$(echo "$clients" | tail -1)
+  clients=$(echo "$clients" | sed '$d')
+
+  if [[ "$http_code" != "200" ]]; then
+    echo "  ERROR: Realm '$realm' not found or not accessible (HTTP $http_code). Aborting."
+    exit 1
+  fi
+
   while read -r client; do
     [[ -z "$client" ]] && continue
     ((++TOTAL_CLIENTS_CHECKED))
