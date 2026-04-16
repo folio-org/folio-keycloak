@@ -10,6 +10,8 @@ CLIENT_ID_PATTERN=${CLIENT_ID_PATTERN:-"-application$"}
 DRY_RUN=${DRY_RUN:-"true"}
 PAGE_SIZE=${PAGE_SIZE:-100}
 TENANT_IDS=${TENANT_IDS:-""}
+MAX_RETRIES=${MAX_RETRIES:-3}
+RETRY_DELAY=${RETRY_DELAY:-5}
 
 # Global Counters
 TOTAL_REALMS_PROCESSED=0
@@ -22,6 +24,8 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "RUNNING IN DRY-RUN MODE. Set DRY_RUN=false to perform deletions."
   echo "================================================================"
 fi
+
+TOKEN_TIMESTAMP=0
 
 get_token() {
   local response
@@ -40,7 +44,88 @@ get_token() {
     [[ -n "$error_msg" ]] && echo "Details: $error_msg" >&2
     exit 1
   fi
+  TOKEN_TIMESTAMP=$(date +%s)
   echo "$token"
+}
+
+refresh_token_if_needed() {
+  local now
+  now=$(date +%s)
+  local elapsed=$(( now - TOKEN_TIMESTAMP ))
+  if [[ $elapsed -ge 50 ]]; then
+    TOKEN=$(get_token)
+    echo "  [TOKEN] Refreshed admin token (was ${elapsed}s old)"
+  fi
+}
+
+# Curl wrapper with retry logic and HTTP status checking.
+# Usage: curl_with_retry [-X METHOD] URL
+# Outputs response body to stdout. Exits on persistent failure.
+curl_with_retry() {
+  local attempt=0 http_code body response
+  while (( attempt < MAX_RETRIES )); do
+    ((++attempt))
+    response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN" "$@")
+    http_code=$(echo "$response" | tail -1)
+    body=$(echo "$response" | sed '$d')
+
+    if [[ "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+      echo "$body"
+      return 0
+    fi
+
+    if [[ "$http_code" == "401" ]]; then
+      echo "  [RETRY] Got 401, refreshing token (attempt ${attempt}/${MAX_RETRIES})..." >&2
+      TOKEN=$(get_token)
+      continue
+    fi
+
+    if [[ "$http_code" =~ ^5[0-9][0-9]$ ]] && (( attempt < MAX_RETRIES )); then
+      echo "  [RETRY] Got HTTP ${http_code}, retrying in ${RETRY_DELAY}s (attempt ${attempt}/${MAX_RETRIES})..." >&2
+      sleep "$RETRY_DELAY"
+      continue
+    fi
+
+    echo "ERROR: HTTP ${http_code} after ${attempt} attempts for: curl $*" >&2
+    echo "$body" >&2
+    return 1
+  done
+
+  echo "ERROR: Exhausted ${MAX_RETRIES} retries for: curl $*" >&2
+  return 1
+}
+
+# DELETE wrapper with retry and status verification.
+# Returns 0 on success (2xx), 1 on failure.
+curl_delete_with_retry() {
+  local attempt=0 http_code response
+  while (( attempt < MAX_RETRIES )); do
+    ((++attempt))
+    refresh_token_if_needed
+    response=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -H "Authorization: Bearer $TOKEN" "$@")
+
+    if [[ "$response" =~ ^2[0-9][0-9]$ ]]; then
+      return 0
+    fi
+
+    if [[ "$response" == "401" ]]; then
+      echo "    [RETRY] Got 401 on DELETE, refreshing token (attempt ${attempt}/${MAX_RETRIES})..." >&2
+      TOKEN=$(get_token)
+      continue
+    fi
+
+    if [[ "$response" =~ ^5[0-9][0-9]$ ]] && (( attempt < MAX_RETRIES )); then
+      echo "    [RETRY] Got HTTP ${response} on DELETE, retrying in ${RETRY_DELAY}s (attempt ${attempt}/${MAX_RETRIES})..." >&2
+      sleep "$RETRY_DELAY"
+      continue
+    fi
+
+    echo "    WARNING: DELETE returned HTTP ${response} after ${attempt} attempts for: $*" >&2
+    return 1
+  done
+
+  echo "    WARNING: DELETE exhausted ${MAX_RETRIES} retries for: $*" >&2
+  return 1
 }
 
 role_exists() {
@@ -55,29 +140,35 @@ TOKEN=$(get_token)
 
 if [[ -n "$TENANT_IDS" ]]; then
   IFS=',' read -ra REALMS <<< "$TENANT_IDS"
+  # Remove duplicates while preserving order
+  declare -A seen_realms
+  unique_realms=()
+  for r in "${REALMS[@]}"; do
+    if [[ -z "${seen_realms[$r]+x}" ]]; then
+      seen_realms[$r]=1
+      unique_realms+=("$r")
+    fi
+  done
+  REALMS=("${unique_realms[@]}")
+  unset seen_realms unique_realms
   echo "Using specified realms: ${REALMS[*]}"
 else
-  mapfile -t REALMS < <(curl -s -H "Authorization: Bearer $TOKEN" "${KEYCLOAK_URL}/admin/realms" | jq -r '.[].realm')
+  mapfile -t REALMS < <(curl_with_retry "${KEYCLOAK_URL}/admin/realms" | jq -r '.[].realm')
   echo "Fetched all realms from Keycloak (${#REALMS[@]} total)"
 fi
 
 for realm in "${REALMS[@]}"; do
   [[ "$realm" == "master" ]] && continue
   ((++TOTAL_REALMS_PROCESSED))
+  refresh_token_if_needed
   echo "Processing realm: $realm"
 
-  clients=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN" "${KEYCLOAK_URL}/admin/realms/${realm}/clients")
-  http_code=$(echo "$clients" | tail -1)
-  clients=$(echo "$clients" | sed '$d')
-
-  if [[ "$http_code" != "200" ]]; then
-    echo "  ERROR: Realm '$realm' not found or not accessible (HTTP $http_code). Aborting."
-    exit 1
-  fi
+  clients=$(curl_with_retry "${KEYCLOAK_URL}/admin/realms/${realm}/clients")
 
   while read -r client; do
     [[ -z "$client" ]] && continue
     ((++TOTAL_CLIENTS_CHECKED))
+    refresh_token_if_needed
 
     client_uuid=$(echo "$client" | jq -r '.id')
     client_id=$(echo "$client" | jq -r '.clientId')
@@ -86,11 +177,13 @@ for realm in "${REALMS[@]}"; do
     # Initialize variables
     dead_role_policy_ids=()
     dead_permission_ids=()
+    declare -A dead_role_policy_set=()
     
     # --- PHASE 1: Identify all Dead Role Policies (Paginated) ---
     offset=0
     while true; do
-      policies_chunk=$(curl -s -H "Authorization: Bearer $TOKEN" \
+      refresh_token_if_needed
+      policies_chunk=$(curl_with_retry \
         "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy?type=role&first=${offset}&max=${PAGE_SIZE}")
       
       count=$(echo "$policies_chunk" | jq '. | length')
@@ -100,7 +193,7 @@ for realm in "${REALMS[@]}"; do
         pid=$(echo "$policy" | jq -r '.id')
         pname=$(echo "$policy" | jq -r '.name')
         
-        policy_detail=$(curl -s -H "Authorization: Bearer $TOKEN" \
+        policy_detail=$(curl_with_retry \
           "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${pid}")
         
         roles_json=$(echo "$policy_detail" | jq -r '.roles // .config.roles // empty')
@@ -126,6 +219,7 @@ for realm in "${REALMS[@]}"; do
             if [[ $total_roles -gt 0 && $existing_roles -eq 0 ]]; then
               echo "    Found dead role policy: $pname ($pid)"
               dead_role_policy_ids=("${dead_role_policy_ids[@]+"${dead_role_policy_ids[@]}"}" "$pid")
+              dead_role_policy_set[$pid]=1
               ((++TOTAL_DEAD_ROLE_POLICIES))
             fi
           fi
@@ -145,7 +239,8 @@ for realm in "${REALMS[@]}"; do
     for type in "scope" "resource"; do
       offset=0
       while true; do
-        perms_chunk=$(curl -s -H "Authorization: Bearer $TOKEN" \
+        refresh_token_if_needed
+        perms_chunk=$(curl_with_retry \
           "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy?type=${type}&first=${offset}&max=${PAGE_SIZE}")
         
         count=$(echo "$perms_chunk" | jq '. | length')
@@ -155,7 +250,7 @@ for realm in "${REALMS[@]}"; do
           permid=$(echo "$perm" | jq -r '.id')
           permname=$(echo "$perm" | jq -r '.name')
           
-          perm_detail=$(curl -s -H "Authorization: Bearer $TOKEN" \
+          perm_detail=$(curl_with_retry \
             "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${permid}")
           
           assoc_policies=$(echo "$perm_detail" | jq -r '.associatedPolicies // .config.applyPolicies // empty')
@@ -173,15 +268,9 @@ for realm in "${REALMS[@]}"; do
               
               while read -r aid; do
                 [[ -z "$aid" ]] && continue
-                is_dead=false
-                for dead_id in "${dead_role_policy_ids[@]+"${dead_role_policy_ids[@]}"}"; do
-                  if [[ "$aid" == "$dead_id" ]]; then
-                    is_dead=true
-                    has_at_least_one_dead=true
-                    break
-                  fi
-                done
-                if [[ "$is_dead" == "false" ]]; then
+                if [[ -n "${dead_role_policy_set[$aid]+x}" ]]; then
+                  has_at_least_one_dead=true
+                else
                   all_assoc_are_dead=false
                   break
                 fi
@@ -207,8 +296,10 @@ for realm in "${REALMS[@]}"; do
         echo "    [DRY-RUN] Would delete permission $dpid"
       else
         echo "    Deleting permission $dpid..."
-        curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
-          "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${dpid}"
+        if ! curl_delete_with_retry \
+          "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${dpid}"; then
+          echo "    WARNING: Failed to delete permission $dpid"
+        fi
       fi
     done
 
@@ -217,12 +308,14 @@ for realm in "${REALMS[@]}"; do
         echo "    [DRY-RUN] Would delete role policy $drpid"
       else
         echo "    Deleting role policy $drpid..."
-        curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
-          "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${drpid}"
+        if ! curl_delete_with_retry \
+          "${KEYCLOAK_URL}/admin/realms/${realm}/clients/${client_uuid}/authz/resource-server/policy/${drpid}"; then
+          echo "    WARNING: Failed to delete role policy $drpid"
+        fi
       fi
     done
 
-  done < <(echo "$clients" | jq -c ".[] | select(.clientId | test(\"$CLIENT_ID_PATTERN\")) | select(.authorizationServicesEnabled == true)")
+  done < <(echo "$clients" | jq -c --arg pattern "$CLIENT_ID_PATTERN" '.[] | select(.clientId | test($pattern)) | select(.authorizationServicesEnabled == true)')
 done
 
 echo ""
