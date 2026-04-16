@@ -44,7 +44,6 @@ get_token() {
     [[ -n "$error_msg" ]] && echo "Details: $error_msg" >&2
     exit 1
   fi
-  TOKEN_TIMESTAMP=$(date +%s)
   echo "$token"
 }
 
@@ -52,8 +51,9 @@ refresh_token_if_needed() {
   local now
   now=$(date +%s)
   local elapsed=$(( now - TOKEN_TIMESTAMP ))
-  if [[ $elapsed -ge 50 ]]; then
+  if [[ $elapsed -ge 300 ]]; then
     TOKEN=$(get_token)
+    TOKEN_TIMESTAMP=$(date +%s)
     echo "  [TOKEN] Refreshed admin token (was ${elapsed}s old)"
   fi
 }
@@ -77,6 +77,7 @@ curl_with_retry() {
     if [[ "$http_code" == "401" ]]; then
       echo "  [RETRY] Got 401, refreshing token (attempt ${attempt}/${MAX_RETRIES})..." >&2
       TOKEN=$(get_token)
+      TOKEN_TIMESTAMP=$(date +%s)
       continue
     fi
 
@@ -111,6 +112,7 @@ curl_delete_with_retry() {
     if [[ "$response" == "401" ]]; then
       echo "    [RETRY] Got 401 on DELETE, refreshing token (attempt ${attempt}/${MAX_RETRIES})..." >&2
       TOKEN=$(get_token)
+      TOKEN_TIMESTAMP=$(date +%s)
       continue
     fi
 
@@ -137,6 +139,7 @@ role_exists() {
 }
 
 TOKEN=$(get_token)
+TOKEN_TIMESTAMP=$(date +%s)
 
 if [[ -n "$TENANT_IDS" ]]; then
   IFS=',' read -ra REALMS <<< "$TENANT_IDS"
