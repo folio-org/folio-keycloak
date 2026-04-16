@@ -9,7 +9,7 @@ ADMIN_PASS=${2:-${KC_ADMIN_PASSWORD:-"admin"}}
 CLIENT_ID_PATTERN=${CLIENT_ID_PATTERN:-"-application$"}
 DRY_RUN=${DRY_RUN:-"true"}
 PAGE_SIZE=${PAGE_SIZE:-100}
-REALMS_FILTER=${REALMS_FILTER:-""}
+TENANT_IDS=${TENANT_IDS:-""}
 
 # Global Counters
 TOTAL_REALMS_PROCESSED=0
@@ -53,8 +53,8 @@ role_exists() {
 
 TOKEN=$(get_token)
 
-if [[ -n "$REALMS_FILTER" ]]; then
-  IFS=',' read -ra REALMS <<< "$REALMS_FILTER"
+if [[ -n "$TENANT_IDS" ]]; then
+  IFS=',' read -ra REALMS <<< "$TENANT_IDS"
   echo "Using specified realms: ${REALMS[*]}"
 else
   mapfile -t REALMS < <(curl -s -H "Authorization: Bearer $TOKEN" "${KEYCLOAK_URL}/admin/realms" | jq -r '.[].realm')
