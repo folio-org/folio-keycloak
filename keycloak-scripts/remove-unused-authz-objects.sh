@@ -9,6 +9,7 @@ ADMIN_PASS=${2:-${KC_ADMIN_PASSWORD:-"admin"}}
 CLIENT_ID_PATTERN=${CLIENT_ID_PATTERN:-"-application$"}
 DRY_RUN=${DRY_RUN:-"true"}
 PAGE_SIZE=${PAGE_SIZE:-100}
+REALMS_FILTER=${REALMS_FILTER:-""}
 
 # Global Counters
 TOTAL_REALMS_PROCESSED=0
@@ -52,9 +53,15 @@ role_exists() {
 
 TOKEN=$(get_token)
 
-REALMS=$(curl -s -H "Authorization: Bearer $TOKEN" "${KEYCLOAK_URL}/admin/realms" | jq -r '.[].realm')
+if [[ -n "$REALMS_FILTER" ]]; then
+  IFS=',' read -ra REALMS <<< "$REALMS_FILTER"
+  echo "Using specified realms: ${REALMS[*]}"
+else
+  mapfile -t REALMS < <(curl -s -H "Authorization: Bearer $TOKEN" "${KEYCLOAK_URL}/admin/realms" | jq -r '.[].realm')
+  echo "Fetched all realms from Keycloak (${#REALMS[@]} total)"
+fi
 
-for realm in $REALMS; do
+for realm in "${REALMS[@]}"; do
   [[ "$realm" == "master" ]] && continue
   ((++TOTAL_REALMS_PROCESSED))
   echo "Processing realm: $realm"
@@ -148,7 +155,7 @@ for realm in $REALMS; do
 
           if [[ -n "$assoc_policies" ]]; then
             if [[ "$assoc_policies" == \[* ]]; then
-               assoc_ids=$(echo "$assoc_policies" | jq -r '.[].id')
+               assoc_ids=$(echo "$assoc_policies" | jq -r '.[] | if type == "object" then .id else . end')
             else
                assoc_ids=$(echo "$assoc_policies" | tr ',' '\n')
             fi
