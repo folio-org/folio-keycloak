@@ -183,7 +183,9 @@ Script to identify and remove Keycloak Authorization policies and permissions th
 
 - **Identifies Dead Role Policies:** Finds policies of type 'role' where all referenced roles have been deleted.
 - **Identifies Dead Permissions:** Finds 'scope' or 'resource' permissions that exclusively use the identified dead policies.
-- **Paginated Processing:** Safely handles environments with thousands of authorization objects using REST API pagination.
+- **Streaming & Resumable:** Streams each page of policies/permissions and deletes orphans immediately, never holding the full ID set in memory. Persists progress in a state directory so a crash or restart can resume from the last committed offset.
+- **High Performance:** Pre-loads all realm role IDs into an in-memory hash, drastically speeding up lookups (often 50-200x on large realms), and uses single-pass `jq` filters per page.
+- **Parallel Deletions:** Deletes in configurable batches with bounded parallelism (`xargs -P`) and optional throttling between batches.
 - **Dry-Run Mode:** By default, it only previews what would be deleted without making any changes.
 - **Summary Report:** Provides a detailed count of processed realms, checked clients, and found/deleted resources.
 
@@ -200,13 +202,59 @@ Script to identify and remove Keycloak Authorization policies and permissions th
 
 ```bash
 export KEYCLOAK_URL="http://localhost:8080"
-export CLIENT_ID_PATTERN="-application$" # Regex pattern to filter clients
-export DRY_RUN="true" # Set to "false" to perform actual deletions
-export PAGE_SIZE=100  # Number of items per API request
+export KC_ADMIN_USER="admin"                 # Alternative to positional argument
+export KC_ADMIN_PASSWORD="admin"             # Alternative to positional argument
+export CLIENT_ID_PATTERN="-application$"     # Regex pattern to filter clients
+export TENANT_IDS=""                         # Comma-separated realms; empty = all realms
+export DRY_RUN="true"                        # Set to "false" to perform actual deletions
+export PAGE_SIZE=100                         # Number of items per API request
+export BATCH_SIZE=50                         # Deletes flushed per batch
+export PARALLEL_DELETES=4                    # Concurrent DELETE requests
+export BATCH_SLEEP_MS=0                      # Sleep between batches (ms)
+export MAX_RETRIES=3                         # Per-request retry count
+export RETRY_DELAY=5                         # Backoff between retries (s)
+export STATE_DIR="./.kc-cleanup-state"       # Where checkpoints live
+export RESET_STATE="false"                   # true to wipe state and restart
+export LOG_FILE="./.kc-cleanup-state/run.log" # Append structured log here
 ```
 
-**2. Run the script:**
+### Examples
 
+**Dry-run, all realms, default settings:**
 ```bash
-./keycloak-scripts/remove-unused-authz-objects.sh <admin_username> <admin_password>
+DRY_RUN=true ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
 ```
+
+**One tenant, real deletions, more parallelism:**
+```bash
+DRY_RUN=false TENANT_IDS=acme PARALLEL_DELETES=8 BATCH_SIZE=100 \
+  ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
+```
+
+**Multiple tenants, gentle on Keycloak:**
+```bash
+DRY_RUN=false TENANT_IDS=acme,globex,initech PARALLEL_DELETES=2 BATCH_SLEEP_MS=250 \
+  ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
+```
+
+**Resume after a Keycloak restart (same command, same STATE_DIR):**
+```bash
+DRY_RUN=false TENANT_IDS=acme ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
+```
+
+**Start over (wipes previous state):**
+```bash
+RESET_STATE=true DRY_RUN=true ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
+```
+
+### Resume Behavior
+
+The script saves its execution state to a `.kc-cleanup-state/` directory by default. This allows the script to safely resume where it left off in the event of a crash, Keycloak restart, or early termination (SIGTERM). 
+
+The state layout includes:
+- `run.log`: A structured append-only log.
+- `realms.done`: Tracks fully processed realms.
+- `clients.done`: Tracks fully processed clients within a realm.
+- `<client_uuid>.cursor`: Tracks the exact phase and offset for in-progress clients.
+
+A re-run with the same `STATE_DIR` skips everything already marked as "done" and continues the in-progress client from its last cursor. To start completely fresh, use `RESET_STATE=true`.
