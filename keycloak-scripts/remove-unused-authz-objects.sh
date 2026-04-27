@@ -111,6 +111,13 @@ get_token() {
     -d "password=${ADMIN_PASS}" \
     -d 'grant_type=password' \
     -d 'client_id=admin-cli')
+
+  # Validate JSON before parsing - prevents cryptic jq errors
+  if ! echo "$response" | jq -e . >/dev/null 2>&1; then
+    log "ERROR" "Token endpoint returned non-JSON response (first 200 chars): ${response:0:200}"
+    return 1
+  fi
+
   token=$(echo "$response" | jq -r '.access_token // empty')
   if [[ -z "$token" || "$token" == "null" ]]; then
     log "ERROR" "Token request failed: $(echo "$response" | jq -r '.error_description // .error // .')"
