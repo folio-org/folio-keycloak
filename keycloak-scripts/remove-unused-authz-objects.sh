@@ -382,8 +382,15 @@ process_permissions() {
 
   # Build a hash of dead role policy ids for this client.
   declare -A DEAD
-  while IFS= read -r d; do [[ -n "$d" ]] && DEAD["$d"]=1; done < <(load_dead_roles "$realm" "$client_uuid")
-  if (( ${#DEAD[@]} == 0 )); then
+  local dead_count=0
+  while IFS= read -r d; do
+    if [[ -n "$d" ]]; then
+      DEAD["$d"]=1
+      ((++dead_count))
+    fi
+  done < <(load_dead_roles "$realm" "$client_uuid")
+
+  if (( dead_count == 0 )); then
     log "INFO" "  [$realm/$client_id] no dead role policies — skipping permissions ($ptype)"
     return 0
   fi
