@@ -1,5 +1,7 @@
 # Release Notes
 ## Version `v26.5.4` (in progress)
+* Use Keycloak supported `jdbc-ping` cache discovery instead of custom JDBC_PING2 XML while preserving authorization cache size tuning (KEYCLOAK-111)
+  - Upgrade note: deploy this change by stopping the existing Keycloak cluster before starting the new version. Avoid rolling updates that temporarily mix old custom JDBC_PING2 pods with new `jdbc-ping` pods.
 
 ## Version `v26.5.3` (06.04.2026)
 * Update to Keycloak 26.5.7 and folio-keycloak-plugin to 26.5.4 (KEYCLOAK-102)

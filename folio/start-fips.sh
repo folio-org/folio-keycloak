@@ -10,7 +10,7 @@ fi
 /opt/keycloak/bin/folio/configure-realms.sh &
 
 kcCache=ispn
-kcCacheConfigFile=cache-ispn-jdbc.xml
+kcCacheStack=jdbc-ping
 logLevel=INFO
 
 echo "Starting in FIPS mode"
@@ -25,6 +25,7 @@ echo "Starting in FIPS mode"
  --https-trust-store-password="${KCADM_HTTPS_TRUST_STORE_PASSWORD:-SecretPassword}" \
  --spi-password-hashing-pbkdf2-sha256-max-padding-length=14 \
  --cache="$kcCache" \
- --cache-config-file="$kcCacheConfigFile" \
+ --cache-stack="$kcCacheStack" \
+ --cache-embedded-authorization-max-count="${KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT:-80000}" \
  --log-level="${KC_LOG_LEVEL:-${logLevel}}" \
  -Djava.security.properties=/opt/keycloak/conf/java.security
