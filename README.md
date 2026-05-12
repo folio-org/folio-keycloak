@@ -69,8 +69,9 @@ docker build -t folio-keycloak .
 The image uses Keycloak's supported `jdbc-ping` cache stack for embedded Infinispan cluster discovery. The legacy
 custom `cache-ispn-jdbc.xml` file is no longer used by the image.
 
-Offline session caches default to 100000 entries to reduce database lookups from cache eviction after moving to
-Keycloak's built-in cache configuration. Use the offline cache max-count variables above to tune this per deployment.
+The legacy XML did not set a count limit for offline session caches, while Keycloak's built-in cache configuration
+defaults them to 10000 entries. This image sets supported offline cache max-count options to 100000 by default to reduce
+database lookups from cache eviction. Use the offline cache max-count variables above to tune this per deployment.
 
 When health checks are enabled, `/health/ready` should include the `Keycloak cluster health check`, and metrics should
 expose `vendor_cluster_size` for cluster membership monitoring.
