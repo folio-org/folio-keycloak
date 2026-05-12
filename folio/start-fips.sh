@@ -27,5 +27,7 @@ echo "Starting in FIPS mode"
  --cache="$kcCache" \
  --cache-stack="$kcCacheStack" \
  --cache-embedded-authorization-max-count="${KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT:-80000}" \
+ --cache-embedded-offline-sessions-max-count="${KC_CACHE_EMBEDDED_OFFLINE_SESSIONS_MAX_COUNT:-100000}" \
+ --cache-embedded-offline-client-sessions-max-count="${KC_CACHE_EMBEDDED_OFFLINE_CLIENT_SESSIONS_MAX_COUNT:-100000}" \
  --log-level="${KC_LOG_LEVEL:-${logLevel}}" \
  -Djava.security.properties=/opt/keycloak/conf/java.security
