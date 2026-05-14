@@ -10,5 +10,6 @@ docker/.env.local
 ## AI
 /.claude/
 /.codemie/
+/.tasks/
 CLAUDE.md
 AGENTS.md
