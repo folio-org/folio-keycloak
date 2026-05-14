@@ -6,3 +6,10 @@ docker/.env.local
 **/.temp-descriptors/
 **/.temp/
 **/tmp/
+
+## AI
+/.claude/
+/.codemie/
+/.tasks/
+CLAUDE.md
+AGENTS.md
