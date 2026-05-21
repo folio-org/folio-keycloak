@@ -72,14 +72,7 @@
                       <input tabindex="4" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
                   </div>
                   <a href="${client.baseUrl}" id="return-to-tenant-selection" style="display: none;" class="${properties.kcReturnToTenantSelection}">${msg("backToTenantSelection")}</a>
-                  <script type="text/javascript">
-                      const urlParams = new URLSearchParams(window.location.search);
-                      const isConsortium = urlParams.get('isConsortium');
-
-                      if (isConsortium === 'true') {
-                          document.getElementById('return-to-tenant-selection').style.display = 'block';
-                      }
-                  </script>
+                  <script src="${url.resourcesPath}/js/login.js"></script>
             </form>
         </#if>
         </div>
