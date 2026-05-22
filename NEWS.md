@@ -1,5 +1,6 @@
 # Release Notes
-## Version `v26.5.5` (in progress)
+## Version `v26.6.0` (in progress)
+* Update to Keycloak 26.6.2 and folio-keycloak-plugin to 26.6.0 (KEYCLOAK-112)
 
 ## Version `v26.5.4` (14.05.2026)
 * Use Keycloak supported `jdbc-ping` cache discovery instead of custom JDBC_PING2 XML while preserving authorization cache size tuning via `KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT`; offline session cache limits can be tuned via `KC_CACHE_EMBEDDED_OFFLINE_SESSIONS_MAX_COUNT` and `KC_CACHE_EMBEDDED_OFFLINE_CLIENT_SESSIONS_MAX_COUNT` (KEYCLOAK-111)
