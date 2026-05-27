@@ -15,6 +15,7 @@ tested. Combinations not explicitly stated may work, but are not guaranteed.
 
 | folio-keycloak | Compatible With             | Not Compatible With         |
 |----------------|-----------------------------|-----------------------------|
+| v26.6.0        | Trillium, Sunflower CSP 8+  |                             |
 | v26.5.x        | Sunflower CSP4+             | Sunflower CSP0-3 (TLS mode) |
 | v26.4.x        | Sunflower CSP4+             | Sunflower CSP0-3 (TLS mode) |
 | v26.3.x        | Sunflower CSP2-3            |                             |
