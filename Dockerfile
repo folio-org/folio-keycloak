@@ -5,7 +5,7 @@ FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 WORKDIR /tmp/keycloak-providers-jars
 
 # FOLIO Keycloak plugins versions to download
-ARG FOLIO_KEYCLOAK_PLUGIN_VERSION=26.5.4
+ARG FOLIO_KEYCLOAK_PLUGIN_VERSION=26.6.0
 
 ARG FOLIO_MAVEN_URL=https://repository.folio.org/repository/maven-releases
 
@@ -13,7 +13,7 @@ ARG FOLIO_MAVEN_URL=https://repository.folio.org/repository/maven-releases
 RUN wget ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-detect-folio-user/${FOLIO_KEYCLOAK_PLUGIN_VERSION}/keycloak-detect-folio-user-${FOLIO_KEYCLOAK_PLUGIN_VERSION}.jar
 RUN wget ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-ecs-folio-authenticator/${FOLIO_KEYCLOAK_PLUGIN_VERSION}/keycloak-ecs-folio-authenticator-${FOLIO_KEYCLOAK_PLUGIN_VERSION}.jar
 
-FROM quay.io/keycloak/keycloak:26.5.7 AS builder
+FROM quay.io/keycloak/keycloak:26.6.2 AS builder
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -26,9 +26,13 @@ COPY --chown=keycloak:keycloak conf/* /opt/keycloak/conf/
 
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM quay.io/keycloak/keycloak:26.5.7
+FROM quay.io/keycloak/keycloak:26.6.2
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
+
+# Temporary setting required to retain Keycloak 26.5.7 OIDC behavior expected by FOLIO.
+ENV KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK=true
+ENV KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN=true
 
 RUN mkdir /opt/keycloak/bin/folio
 COPY --chown=keycloak:keycloak folio/configure-realms.sh /opt/keycloak/bin/folio/
