@@ -15,6 +15,7 @@ tested. Combinations not explicitly stated may work, but are not guaranteed.
 
 | folio-keycloak | Compatible With             | Not Compatible With         |
 |----------------|-----------------------------|-----------------------------|
+| v26.6.0        | Trillium, Sunflower CSP 8+  |                             |
 | v26.5.x        | Sunflower CSP4+             | Sunflower CSP0-3 (TLS mode) |
 | v26.4.x        | Sunflower CSP4+             | Sunflower CSP0-3 (TLS mode) |
 | v26.3.x        | Sunflower CSP2-3            |                             |
@@ -49,20 +50,34 @@ docker build -t folio-keycloak .
 
 ### Additional variables for container
 
-| METHOD                                                    | REQUIRED | DEFAULT VALUE                                                   | DESCRIPTION                                      |
-|:----------------------------------------------------------|:--------:|:----------------------------------------------------------------|:-------------------------------------------------|
-| KC_FOLIO_BE_ADMIN_CLIENT_ID                               |  false   | folio-backend-admin-client                                      | Folio backend client id                          |
-| KC_FOLIO_BE_ADMIN_CLIENT_SECRET                           |   true   | -                                                               | Folio backend client secret                      |
-| KC_HTTPS_KEY_STORE_TYPE                                   |  false   | BCFKS                                                           | Keystore type                                    |
-| KC_HTTPS_KEY_STORE                                        |  false   | /opt/keycloak/conf/test.server.keystore                         | Keystore file                                    |
-| KC_HTTPS_KEY_STORE_PASSWORD                               |   true   | SecretPassword                                                  | Keystore password                                |
-| KCADM_HTTPS_TRUST_STORE_TYPE                              |  false   | BCFKS                                                           | Truststore type                                  |
-| KCADM_HTTPS_TRUST_STORE                                   |  false   | /opt/keycloak/conf/test.server.truststore                       | Truststore file                                  |
-| KCADM_HTTPS_TRUST_STORE_PASSWORD                          |   true   | SecretPassword                                                  | Truststore password                              |
-| KC_LOG_LEVEL                                              |  false   | INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE | Keycloak log level                               |
-| KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT                 |  false   | 80000                                                           | Authorization cache max entries                  |
-| KC_CACHE_EMBEDDED_OFFLINE_SESSIONS_MAX_COUNT              |  false   | 100000                                                          | Offline sessions cache max entries               |
-| KC_CACHE_EMBEDDED_OFFLINE_CLIENT_SESSIONS_MAX_COUNT       |  false   | 100000                                                          | Offline client sessions cache max entries        |
+| METHOD                                                                                  | REQUIRED | DEFAULT VALUE                                                   | DESCRIPTION                                                                    |
+|:----------------------------------------------------------------------------------------|:--------:|:----------------------------------------------------------------|:-------------------------------------------------------------------------------|
+| KC_FOLIO_BE_ADMIN_CLIENT_ID                                                             |  false   | folio-backend-admin-client                                      | Folio backend client id                                                        |
+| KC_FOLIO_BE_ADMIN_CLIENT_SECRET                                                         |   true   | -                                                               | Folio backend client secret                                                    |
+| KC_HTTPS_KEY_STORE_TYPE                                                                 |  false   | BCFKS                                                           | Keystore type                                                                  |
+| KC_HTTPS_KEY_STORE                                                                      |  false   | /opt/keycloak/conf/test.server.keystore                         | Keystore file                                                                  |
+| KC_HTTPS_KEY_STORE_PASSWORD                                                             |   true   | SecretPassword                                                  | Keystore password                                                              |
+| KCADM_HTTPS_TRUST_STORE_TYPE                                                            |  false   | BCFKS                                                           | Truststore type                                                                |
+| KCADM_HTTPS_TRUST_STORE                                                                 |  false   | /opt/keycloak/conf/test.server.truststore                       | Truststore file                                                                |
+| KCADM_HTTPS_TRUST_STORE_PASSWORD                                                        |   true   | SecretPassword                                                  | Truststore password                                                            |
+| KC_LOG_LEVEL                                                                            |  false   | INFO,org.keycloak.common.crypto:TRACE,org.keycloak.crypto:TRACE | Keycloak log level                                                             |
+| KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT                                               |  false   | 80000                                                           | Authorization cache max entries                                                |
+| KC_CACHE_EMBEDDED_OFFLINE_SESSIONS_MAX_COUNT                                            |  false   | 100000                                                          | Offline sessions cache max entries                                             |
+| KC_CACHE_EMBEDDED_OFFLINE_CLIENT_SESSIONS_MAX_COUNT                                     |  false   | 100000                                                          | Offline client sessions cache max entries                                      |
+| KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK |  false   | true                                                            | Allow token introspection without audience validation. Should be set as `true` |
+| KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN     |  false   | true                                                            | Allow UserInfo with lightweight access tokens. Should be set as `true`         |
+
+#### Note – Temporary setting required to retain Keycloak 26.5.7 OIDC behavior expected by FOLIO.
+The published `folio-keycloak` image defaults the following variables to `true`. This retains the Keycloak 26.5.7 OIDC behavior expected by FOLIO.
+- `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK`
+- `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN`
+
+Custom images not based on the `folio-keycloak` image must set them explicitly:
+
+```dockerfile
+ENV KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK=true \
+    KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN=true
+```
 
 ### Cluster Cache Discovery
 
