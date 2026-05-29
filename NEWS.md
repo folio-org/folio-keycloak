@@ -1,8 +1,10 @@
 # Release Notes
+
 ## Version `v26.6.0` (in progress)
 * Update to Keycloak 26.6.2 and folio-keycloak-plugin to 26.6.0 (KEYCLOAK-112)
 * Enable `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK=true` and `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN=true` by default in the published images
   - Upgrade note: hosting providers with custom images not based on the published `folio-keycloak` image must explicitly set `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK=true` and `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN=true`.
+* Use sessionStorage to ensure `isConsortium` url param is respected after form submit to allow flags to persist if errors are returned. (KEYCLOAK-51).
 
 ## Version `v26.5.4` (14.05.2026)
 * Use Keycloak supported `jdbc-ping` cache discovery instead of custom JDBC_PING2 XML while preserving authorization cache size tuning via `KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT`; offline session cache limits can be tuned via `KC_CACHE_EMBEDDED_OFFLINE_SESSIONS_MAX_COUNT` and `KC_CACHE_EMBEDDED_OFFLINE_CLIENT_SESSIONS_MAX_COUNT` (KEYCLOAK-111)

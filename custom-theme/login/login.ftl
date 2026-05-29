@@ -6,7 +6,7 @@
     <div id="kc-form">
       <div id="kc-form-wrapper">
         <#if realm.password>
-            <form id="kc-form-login" onsubmit="login.disabled = true; return true;" action="${url.loginAction}" method="post">
+            <form id="kc-form-login" onsubmit="onSubmit(event)" action="${url.loginAction}" method="post">
                 <#if !usernameHidden??>
                     <div class="${properties.kcFormGroupClass!}">
                         <label for="username" class="${properties.kcLabelClass!}"><#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if></label>
@@ -72,14 +72,7 @@
                       <input tabindex="4" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!}" name="login" id="kc-login" type="submit" value="${msg("doLogIn")}"/>
                   </div>
                   <a href="${client.baseUrl}" id="return-to-tenant-selection" style="display: none;" class="${properties.kcReturnToTenantSelection}">${msg("backToTenantSelection")}</a>
-                  <script type="text/javascript">
-                      const urlParams = new URLSearchParams(window.location.search);
-                      const isConsortium = urlParams.get('isConsortium');
-
-                      if (isConsortium === 'true') {
-                          document.getElementById('return-to-tenant-selection').style.display = 'block';
-                      }
-                  </script>
+                  <script src="${url.resourcesPath}/js/login.js"></script>
             </form>
         </#if>
         </div>
