@@ -9,8 +9,3 @@ if (isConsortium === 'true' || sessionStorage.getItem(IS_CONSORTIUM_KEY) === 'tr
   sessionStorage.setItem(IS_CONSORTIUM_KEY, 'true');
   document.getElementById('return-to-tenant-selection').style.display = 'block';
 }
-
-handleSubmit = (event) => {
-  login.disabled = true;
-  return true;
-}
