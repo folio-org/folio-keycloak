@@ -349,3 +349,157 @@ export USER_BATCH_SIZE=1000
 - **Sessions:** User sessions and offline tokens are **NOT** migrated. Users will need to re-authenticate.
 - **Signing Keys:** The script ensures signing keys are imported so that refresh tokens from the source cluster remain valid (if the client is already configured to trust them).
 - **Fine-Grained Admin Permissions:** If using FGAP V2, ensure the feature is enabled on both source and destination clusters.
+
+## Repair Corrupted Tenant Data [repair-policy-uuids.sh](keycloak-scripts/repair-policy-uuids.sh)
+
+This procedure explains how to repair corrupted tenant data after a Keycloak realm migration by re-aligning policy UUIDs between Keycloak and FOLIO.
+
+### Problem Description
+
+After realm migration, some resource identifiers (UUIDs) in Keycloak change. However, FOLIO (`mod-roles-keycloak`) may still reference the old UUIDs.
+
+This leads to:
+- Broken references between FOLIO and Keycloak.
+- Missing resources when resolving policies.
+- Inability to manage roles and permissions correctly.
+
+To resolve this, we must synchronize the correct UUIDs from Keycloak into the FOLIO database.
+
+Because PostgreSQL does not support cross-database joins, the required data must be exported from Keycloak and imported into FOLIO.
+
+### Step 1: Export Resource Data from Keycloak
+
+Run the following query on the Keycloak database:
+
+```sql
+SELECT 
+    rsp.id AS id,
+    rsp.name AS name
+FROM resource_server_policy rsp
+JOIN client c ON rsp.resource_server_id = c.id
+WHERE c.realm_id = (
+    SELECT id 
+    FROM realm r 
+    WHERE r.name = '$tenantName'
+);
+```
+
+Replace `$tenantName` with the actual tenant name.
+
+**Export to CSV (psql):**
+
+```sql
+\copy (
+    SELECT 
+        rsp.id,
+        rsp.name
+    FROM resource_server_policy rsp
+    JOIN client c ON rsp.resource_server_id = c.id
+    WHERE c.realm_id = (
+        SELECT id FROM realm r WHERE r.name = '$tenantName'
+    )
+) TO '/tmp/keycloak_policies.csv' WITH (FORMAT csv, HEADER true);
+```
+
+### Step 2: Import Data into FOLIO Database
+
+Connect to the FOLIO database and create a staging table:
+
+```sql
+CREATE TABLE names_csv_staging (
+    name text,
+    id uuid
+);
+```
+
+**Load the CSV file:**
+
+```sql
+COPY names_csv_staging (id, name)
+FROM '/tmp/keycloak_policies.csv'
+WITH (FORMAT csv, HEADER true);
+```
+
+### Step 3: Synchronize UUIDs in FOLIO
+
+Execute the following script in a single transaction:
+
+```sql
+BEGIN;
+
+-- 1) Backup role assignments
+CREATE TEMP TABLE policy_roles_backup AS
+SELECT
+    pr.role_id,
+    pr.required,
+    p.name AS policy_name
+FROM $tenantName_mod_roles_keycloak.policy_roles pr
+JOIN $tenantName_mod_roles_keycloak."policy" p
+    ON pr.policy_id = p.id;
+
+-- 2) Backup user assignments
+CREATE TEMP TABLE policy_users_backup AS
+SELECT
+    pu.user_id,
+    p.name AS policy_name
+FROM $tenantName_mod_roles_keycloak.policy_users pu
+JOIN $tenantName_mod_roles_keycloak."policy" p
+    ON pu.policy_id = p.id;
+
+-- 3) Remove existing assignments
+DELETE FROM $tenantName_mod_roles_keycloak.policy_roles;
+DELETE FROM $tenantName_mod_roles_keycloak.policy_users;
+
+-- 4) Update policy UUIDs from staging table
+UPDATE $tenantName_mod_roles_keycloak."policy" p
+SET id = c.id
+FROM names_csv_staging c
+WHERE p.name = c.name
+  AND c.id IS NOT NULL
+  AND p.id IS DISTINCT FROM c.id;
+
+-- 5) Restore role assignments
+INSERT INTO $tenantName_mod_roles_keycloak.policy_roles (policy_id, role_id, required)
+SELECT
+    p.id,
+    b.role_id,
+    b.required
+FROM policy_roles_backup b
+JOIN $tenantName_mod_roles_keycloak."policy" p
+    ON p.name = b.policy_name;
+
+-- 6) Restore user assignments
+INSERT INTO $tenantName_mod_roles_keycloak.policy_users (policy_id, user_id)
+SELECT
+    p.id,
+    b.user_id
+FROM policy_users_backup b
+JOIN $tenantName_mod_roles_keycloak."policy" p
+    ON p.name = b.policy_name;
+
+COMMIT;
+```
+
+Replace `$tenantName` with the correct tenant schema name.
+
+### Step 4: Cleanup
+
+After successful execution, remove the staging table:
+
+```sql
+DROP TABLE IF EXISTS names_csv_staging;
+```
+
+### Automated Script Usage
+
+The `repair-policy-uuids.sh` script automates these steps if you have `psql` access to both databases.
+
+**Usage:**
+
+```bash
+export KC_DB_URL="postgresql://user:pass@host:5432/keycloak"
+export FOLIO_DB_URL="postgresql://user:pass@host:5432/folio"
+export TENANT="diku"
+
+./keycloak-scripts/repair-policy-uuids.sh
+```
