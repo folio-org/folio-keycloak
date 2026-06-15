@@ -1,6 +1,6 @@
 # Release Notes
 
-## Version `v26.6.0` (in progress)
+## Version `v26.6.0` (15.06.2026)
 * Update to Keycloak 26.6.2 and folio-keycloak-plugin to 26.6.0 (KEYCLOAK-112)
 * Enable `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK=true` and `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN=true` by default in the published images
   - Upgrade note: hosting providers with custom images not based on the published `folio-keycloak` image must explicitly set `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK=true` and `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN=true`.
