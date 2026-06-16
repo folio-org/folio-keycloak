@@ -2,8 +2,12 @@
 
 script="configure-realms.sh"
 keycloakUrl="${KC_URL:-http://localhost:8080}"
+
 clientId="${KC_FOLIO_BE_ADMIN_CLIENT_ID:-folio-backend-admin-client}"
 clientSecret="$KC_FOLIO_BE_ADMIN_CLIENT_SECRET"
+
+adminUser=${KC_BOOTSTRAP_ADMIN_USERNAME:admin}
+adminPassword=${KC_BOOTSTRAP_ADMIN_PASSWORD:admin}
 
 maxAttempts=50
 attemptCounter=0
@@ -13,8 +17,8 @@ function loginAsAdmin() {
   /opt/keycloak/bin/kcadm.sh config credentials \
     --server "$keycloakUrl" \
     --realm master \
-    --user admin \
-    --password "${KC_BOOTSTRAP_ADMIN_PASSWORD-$KEYCLOAK_ADMIN_PASSWORD}" \
+    --user "${adminUser}" \
+    --password "${adminPassword}" \
     &> /dev/null
 }
 

@@ -2,12 +2,13 @@
 
 keycloak=${1:-http://localhost:8080}
 adminPassword=${KC_ADMIN_PASSWORD:admin}
+adminUser=${KC_ADMIN_USER:admin}
 
 # get token
 token=$(curl -s -XPOST \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data-urlencode 'client_id=admin-cli' \
-  --data-urlencode 'username=admin' \
+  --data-urlencode "username=$adminUser" \
   --data-urlencode "password=$adminPassword" \
   --data-urlencode 'grant_type=password' \
   "$keycloak/realms/master/protocol/openid-connect/token" | jq -r '.access_token'
