@@ -7,7 +7,7 @@ clientId="${KC_FOLIO_BE_ADMIN_CLIENT_ID:-folio-backend-admin-client}"
 clientSecret="$KC_FOLIO_BE_ADMIN_CLIENT_SECRET"
 
 adminUser=${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
-adminPassword=${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin}
+adminPassword=${KC_BOOTSTRAP_ADMIN_PASSWORD:-${KEYCLOAK_ADMIN_PASSWORD:-admin}}
 
 maxAttempts=50
 attemptCounter=0
