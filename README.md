@@ -47,15 +47,29 @@ Build application with:
 docker build -t folio-keycloak .
 ```
 
+### Development mode
+
+Set `KC_RUN_MODE=dev` to start Keycloak with `start-dev` instead of `start --optimized`. This skips the build step
+and is useful for local development or environments where a pre-built optimized image is not available.
+
+```shell
+docker run -e KC_RUN_MODE=dev ... folio-keycloak
+```
+
+> **Note:** `start-dev` disables production hardening (e.g. it enables HTTP by default). Do not use in production.
+> This mode is also used when running Keycloak as part of integration test environments.
 
 ### Additional variables for container
 
 | METHOD                                                                                  | REQUIRED | DEFAULT VALUE                                                   | DESCRIPTION                                                                    |
 |:----------------------------------------------------------------------------------------|:--------:|:----------------------------------------------------------------|:-------------------------------------------------------------------------------|
+| KC_RUN_MODE                                                                             |  false   | prod                                                            | Startup mode: `prod` (optimized) or `dev` (start-dev, no `--optimized`)        |
 | KC_FOLIO_BE_ADMIN_CLIENT_ID                                                             |  false   | folio-backend-admin-client                                      | Folio backend client id                                                        |
 | KC_FOLIO_BE_ADMIN_CLIENT_SECRET                                                         |   true   | -                                                               | Folio backend client secret                                                    |
+| KC_BOOTSTRAP_ADMIN_USERNAME                                                             |  false   | admin                                                           | Keycloak admin username used by `configure-realms.sh`                          |
+| KC_BOOTSTRAP_ADMIN_PASSWORD                                                             |  false   | admin                                                           | Keycloak admin password used by `configure-realms.sh`                          |
 | KC_HTTPS_KEY_STORE_TYPE                                                                 |  false   | BCFKS                                                           | Keystore type                                                                  |
-| KC_HTTPS_KEY_STORE                                                                      |  false   | /opt/keycloak/conf/test.server.keystore                         | Keystore file                                                                  |
+| KC_HTTPS_KEY_STORE_FILE                                                                 |  false   | /opt/keycloak/conf/test.server.keystore                         | Keystore file                                                                  |
 | KC_HTTPS_KEY_STORE_PASSWORD                                                             |   true   | SecretPassword                                                  | Keystore password                                                              |
 | KCADM_HTTPS_TRUST_STORE_TYPE                                                            |  false   | BCFKS                                                           | Truststore type                                                                |
 | KCADM_HTTPS_TRUST_STORE                                                                 |  false   | /opt/keycloak/conf/test.server.truststore                       | Truststore file                                                                |
