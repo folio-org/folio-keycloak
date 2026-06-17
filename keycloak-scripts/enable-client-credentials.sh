@@ -1,8 +1,8 @@
 #!/bin/bash
 
 keycloak=${1:-http://localhost:8080}
-adminPassword=${KC_ADMIN_PASSWORD:admin}
-adminUser=${KC_ADMIN_USER:admin}
+adminPassword=${KC_ADMIN_PASSWORD:-admin}
+adminUser=${KC_ADMIN_USER:-admin}
 
 # get token
 token=$(curl -s -XPOST \
