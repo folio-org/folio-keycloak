@@ -9,16 +9,24 @@ fi
 
 /opt/keycloak/bin/folio/configure-realms.sh &
 
+kcRunMode=${KC_RUN_MODE:-prod}
+if [[ "$kcRunMode" == "dev" ]]; then
+  kcStartCommand=start-dev
+  kcOptimized=()
+else
+  kcStartCommand=start
+  kcOptimized=(--optimized)
+fi
 kcCache=ispn
 kcCacheStack=jdbc-ping
 logLevel=INFO
 
 echo "Starting in FIPS mode"
-/opt/keycloak/bin/kc.sh start \
- --optimized \
+exec /opt/keycloak/bin/kc.sh "$kcStartCommand" \
+ "${kcOptimized[@]}" \
  --http-enabled="${KC_HTTP_ENABLED:-false}" \
  --https-key-store-type="${KC_HTTPS_KEY_STORE_TYPE:-BCFKS}" \
- --https-key-store-file="${KC_HTTPS_KEY_STORE:-/opt/keycloak/conf/test.server.keystore}" \
+ --https-key-store-file="${KC_HTTPS_KEY_STORE_FILE:-/opt/keycloak/conf/test.server.keystore}" \
  --https-key-store-password=${KC_HTTPS_KEY_STORE_PASSWORD:-SecretPassword} \
  --https-trust-store-type="${KCADM_HTTPS_TRUST_STORE_TYPE:-BCFKS}" \
  --https-trust-store-file="${KCADM_HTTPS_TRUST_STORE:-/opt/keycloak/conf/test.server.truststore}" \
