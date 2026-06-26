@@ -8,6 +8,7 @@
 * Use sessionStorage to ensure `isConsortium` url param is respected after form submit to allow flags to persist if errors are returned. (KEYCLOAK-51).
 * Reverting back to inline JS so use of global var is clearer. (KEYCLOAK-51).
 * Update to Keycloak 26.6.3 and folio-keycloak-plugin to 26.6.1 (KEYCLOAK-116)
+* Add consistent error message for case where user account is disabled and credentials are entered correctly (KEYCLOAK-101)
 
 ## Version `v26.5.4` (14.05.2026)
 * Use Keycloak supported `jdbc-ping` cache discovery instead of custom JDBC_PING2 XML while preserving authorization cache size tuning via `KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT`; offline session cache limits can be tuned via `KC_CACHE_EMBEDDED_OFFLINE_SESSIONS_MAX_COUNT` and `KC_CACHE_EMBEDDED_OFFLINE_CLIENT_SESSIONS_MAX_COUNT` (KEYCLOAK-111)
