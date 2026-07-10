@@ -10,7 +10,9 @@ This table documents tested compatibility between folio-keycloak and FOLIO relea
 tested. Combinations not explicitly stated may work, but are not guaranteed.
 
 > **Note:**  
-> If you are a product or have tested a FOLIO Keycloak version with a specific FOLIO release, please contribute your findings. If you can confirm compatibility or incompatibility, create a PR in this project to update the documentation. Include evidence or explanations for your results to help keep the compatibility table current.  
+> If you are a product or have tested a FOLIO Keycloak version with a specific FOLIO release, please contribute your
+> findings. If you can confirm compatibility or incompatibility, create a PR in this project to update the documentation.
+> Include evidence or explanations for your results to help keep the compatibility table current.  
 > _We appreciate your contributions!_
 
 | folio-keycloak | Compatible With             | Not Compatible With         |
@@ -82,7 +84,10 @@ docker run -e KC_RUN_MODE=dev ... folio-keycloak
 | KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN     |  false   | true                                                            | Allow UserInfo with lightweight access tokens. Should be set as `true`         |
 
 #### Note – Temporary setting required to retain Keycloak 26.5.7 OIDC behavior expected by FOLIO.
-The published `folio-keycloak` image defaults the following variables to `true`. This retains the Keycloak 26.5.7 OIDC behavior expected by FOLIO.
+
+The published `folio-keycloak` image defaults the following variables to `true`. This retains the Keycloak 26.5.7 OIDC
+behavior expected by FOLIO.
+
 - `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK`
 - `KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN`
 
@@ -226,10 +231,15 @@ Script to identify and remove Keycloak Authorization policies and permissions th
 ### What the Script Does
 
 - **Identifies Dead Role Policies:** Finds policies of type 'role' where all referenced roles have been deleted.
-- **Identifies Dead Permissions:** Finds 'scope' or 'resource' permissions that exclusively use the identified dead policies.
-- **Streaming & Resumable:** Streams each page of policies/permissions and deletes orphans immediately, never holding the full ID set in memory. Persists progress in a state directory so a crash or restart can resume from the last committed offset.
-- **High Performance:** Pre-loads all realm role IDs into an in-memory hash, drastically speeding up lookups (often 50-200x on large realms), and uses single-pass `jq` filters per page.
-- **Parallel Deletions:** Deletes in configurable batches with bounded parallelism (`xargs -P`) and optional throttling between batches.
+- **Identifies Dead Permissions:** Finds 'scope' or 'resource' permissions that exclusively use the identified dead
+  policies.
+- **Streaming & Resumable:** Streams each page of policies/permissions and deletes orphans immediately, never holding
+  the full ID set in memory. Persists progress in a state directory so a crash or restart can resume from the last
+  committed offset.
+- **High Performance:** Pre-loads all realm role IDs into an in-memory hash, drastically speeding up lookups (often
+  50-200x on large realms), and uses single-pass `jq` filters per page.
+- **Parallel Deletions:** Deletes in configurable batches with bounded parallelism (`xargs -P`) and optional throttling
+  between batches.
 - **Dry-Run Mode:** By default, it only previews what would be deleted without making any changes.
 - **Summary Report:** Provides a detailed count of processed realms, checked clients, and found/deleted resources.
 
@@ -265,43 +275,51 @@ export LOG_FILE="./.kc-cleanup-state/run.log" # Append structured log here
 ### Examples
 
 **Dry-run, all realms, default settings:**
+
 ```bash
 DRY_RUN=true ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
 ```
 
 **One tenant, real deletions, more parallelism:**
+
 ```bash
 DRY_RUN=false TENANT_IDS=acme PARALLEL_DELETES=8 BATCH_SIZE=100 \
   ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
 ```
 
 **Multiple tenants, gentle on Keycloak:**
+
 ```bash
 DRY_RUN=false TENANT_IDS=acme,globex,initech PARALLEL_DELETES=2 BATCH_SLEEP_MS=250 \
   ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
 ```
 
 **Resume after a Keycloak restart (same command, same STATE_DIR):**
+
 ```bash
 DRY_RUN=false TENANT_IDS=acme ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
 ```
 
 **Start over (wipes previous state):**
+
 ```bash
 RESET_STATE=true DRY_RUN=true ./keycloak-scripts/remove-unused-authz-objects.sh admin <pwd>
 ```
 
 ### Resume Behavior
 
-The script saves its execution state to a `.kc-cleanup-state/` directory by default. This allows the script to safely resume where it left off in the event of a crash, Keycloak restart, or early termination (SIGTERM). 
+The script saves its execution state to a `.kc-cleanup-state/` directory by default. This allows the script to safely
+resume where it left off in the event of a crash, Keycloak restart, or early termination (SIGTERM).
 
 The state layout includes:
+
 - `run.log`: A structured append-only log.
 - `realms.done`: Tracks fully processed realms.
 - `clients.done`: Tracks fully processed clients within a realm.
 - `<client_uuid>.cursor`: Tracks the exact phase and offset for in-progress clients.
 
-A re-run with the same `STATE_DIR` skips everything already marked as "done" and continues the in-progress client from its last cursor. To start completely fresh, use `RESET_STATE=true`.
+A re-run with the same `STATE_DIR` skips everything already marked as "done" and continues the in-progress client from
+its last cursor. To start completely fresh, use `RESET_STATE=true`.
 
 ## Online Realm Migration [migrate-realm.sh](keycloak-scripts/migrate-realm.sh)
 
@@ -309,12 +327,18 @@ Script for online cluster-to-cluster Keycloak realm migration using the Admin RE
 
 ### What the Script Does
 
-- **Atomic Realm Creation:** Imports realm configuration (login, tokens, themes, etc.), roles, groups, clients (with full authorization settings), authentication flows, and identity providers in a single POST request.
-- **Batched User Import:** Migrates users separately using the `partialImport` API in configurable batches to avoid body-size limits and ensure reliability.
-- **Pre-flight Validation:** Verifies the destination realm doesn't exist, checks for required signing keys to maintain token validity, and summarizes authorization settings coverage.
-- **Cache Verification:** Optionally verifies that the newly created realm is visible across all nodes in the destination cluster to ensure proper JGroups propagation.
-- **Post-Import Spot-checks:** Performs deep validation of authorization objects (resources, policies, permissions) and user counts to ensure migration integrity.
-- **Resumable:** If user import fails, it can be resumed by re-running the script; it uses the `FAIL` strategy for `partialImport` to remain idempotent.
+- **Atomic Realm Creation:** Imports realm configuration (login, tokens, themes, etc.), roles, groups, clients (with
+  full authorization settings), authentication flows, and identity providers in a single POST request.
+- **Batched User Import:** Migrates users separately using the `partialImport` API in configurable batches to avoid
+  body-size limits and ensure reliability.
+- **Pre-flight Validation:** Verifies the destination realm doesn't exist, checks for required signing keys to maintain
+  token validity, and summarizes authorization settings coverage.
+- **Cache Verification:** Optionally verifies that the newly created realm is visible across all nodes in the
+  destination cluster to ensure proper JGroups propagation.
+- **Post-Import Spot-checks:** Performs deep validation of authorization objects (resources, policies, permissions) and
+  user counts to ensure migration integrity.
+- **Resumable:** If user import fails, it can be resumed by re-running the script; it uses the `FAIL` strategy for
+  `partialImport` to remain idempotent.
 
 ### Requirements
 
@@ -348,54 +372,57 @@ export USER_BATCH_SIZE=1000
 
 ### Exit Codes
 
-| Code | Meaning |
-|:-----|:--------|
-| 0    | Success |
-| 1    | Pre-flight failure (no writes performed) |
+| Code | Meaning                                                        |
+|:-----|:---------------------------------------------------------------|
+| 0    | Success                                                        |
+| 1    | Pre-flight failure (no writes performed)                       |
 | 2    | Failure during realm creation (realm may need manual deletion) |
-| 3    | Failure during user import (realm exists, safe to resume) |
-| 4    | Cache verification failure (investigate JGroups) |
-| 5    | Post-import authorization spot-check failed |
+| 3    | Failure during user import (realm exists, safe to resume)      |
+| 4    | Cache verification failure (investigate JGroups)               |
+| 5    | Post-import authorization spot-check failed                    |
 
 ### Notes
 
 - **Zero Downtime:** Designed to migrate realms to a running cluster without requiring a restart.
 - **Sessions:** User sessions and offline tokens are **NOT** migrated. Users will need to re-authenticate.
-- **Signing Keys:** The script ensures signing keys are imported so that refresh tokens from the source cluster remain valid (if the client is already configured to trust them).
-- **Fine-Grained Admin Permissions:** If using FGAP V2, ensure the feature is enabled on both source and destination clusters.
+- **Signing Keys:** The script ensures signing keys are imported so that refresh tokens from the source cluster remain
+  valid (if the client is already configured to trust them).
+- **Fine-Grained Admin Permissions:** If using FGAP V2, ensure the feature is enabled on both source and destination
+  clusters.
 
 ## Repair Corrupted Tenant Data [repair-policy-uuids.sh](keycloak-scripts/repair-policy-uuids.sh)
 
-This procedure explains how to repair corrupted tenant data after a Keycloak realm migration by re-aligning policy UUIDs between Keycloak and FOLIO.
+This procedure explains how to repair corrupted tenant data after a Keycloak realm migration by re-aligning policy UUIDs
+between Keycloak and FOLIO.
 
 ### Problem Description
 
-After realm migration, some resource identifiers (UUIDs) in Keycloak change. However, FOLIO (`mod-roles-keycloak`) may still reference the old UUIDs.
+After realm migration, some resource identifiers (UUIDs) in Keycloak change. However, FOLIO (`mod-roles-keycloak`) may
+still reference the old UUIDs.
 
 This leads to:
+
 - Broken references between FOLIO and Keycloak.
 - Missing resources when resolving policies.
 - Inability to manage roles and permissions correctly.
 
 To resolve this, we must synchronize the correct UUIDs from Keycloak into the FOLIO database.
 
-Because PostgreSQL does not support cross-database joins, the required data must be exported from Keycloak and imported into FOLIO.
+Because PostgreSQL does not support cross-database joins, the required data must be exported from Keycloak and imported
+into FOLIO.
 
 ### Step 1: Export Resource Data from Keycloak
 
 Run the following query on the Keycloak database:
 
 ```sql
-SELECT 
-    rsp.id AS id,
-    rsp.name AS name
+SELECT rsp.id   AS id,
+       rsp.name AS name
 FROM resource_server_policy rsp
-JOIN client c ON rsp.resource_server_id = c.id
-WHERE c.realm_id = (
-    SELECT id 
-    FROM realm r 
-    WHERE r.name = '$tenantName'
-);
+         JOIN client c ON rsp.resource_server_id = c.id
+WHERE c.realm_id = (SELECT id
+                    FROM realm r
+                    WHERE r.name = '$tenantName');
 ```
 
 Replace `$tenantName` with the actual tenant name.
@@ -403,16 +430,16 @@ Replace `$tenantName` with the actual tenant name.
 **Export to CSV (psql):**
 
 ```sql
-\copy (
-    SELECT 
-        rsp.id,
-        rsp.name
-    FROM resource_server_policy rsp
-    JOIN client c ON rsp.resource_server_id = c.id
-    WHERE c.realm_id = (
-        SELECT id FROM realm r WHERE r.name = '$tenantName'
-    )
-) TO '/tmp/keycloak_policies.csv' WITH (FORMAT csv, HEADER true);
+\copy
+(
+SELECT rsp.id,
+       rsp.name
+FROM resource_server_policy rsp
+         JOIN client c ON rsp.resource_server_id = c.id
+WHERE c.realm_id = (SELECT id
+                    FROM realm r
+                    WHERE r.name = '$tenantName') ) TO '/tmp/keycloak_policies.csv'
+WITH (FORMAT csv, HEADER true);
 ```
 
 ### Step 2: Import Data into FOLIO Database
@@ -420,9 +447,10 @@ Replace `$tenantName` with the actual tenant name.
 Connect to the FOLIO database and create a staging table:
 
 ```sql
-CREATE TABLE names_csv_staging (
+CREATE TABLE names_csv_staging
+(
     name text,
-    id uuid
+    id   uuid
 );
 ```
 
@@ -430,8 +458,8 @@ CREATE TABLE names_csv_staging (
 
 ```sql
 COPY names_csv_staging (id, name)
-FROM '/tmp/keycloak_policies.csv'
-WITH (FORMAT csv, HEADER true);
+    FROM '/tmp/keycloak_policies.csv'
+    WITH (FORMAT csv, HEADER true);
 ```
 
 ### Step 3: Synchronize UUIDs in FOLIO
@@ -442,54 +470,54 @@ Execute the following script in a single transaction:
 BEGIN;
 
 -- 1) Backup role assignments
-CREATE TEMP TABLE policy_roles_backup AS
-SELECT
-    pr.role_id,
-    pr.required,
-    p.name AS policy_name
+CREATE
+TEMP TABLE policy_roles_backup AS
+SELECT pr.role_id,
+       pr.required,
+       p.name AS policy_name
 FROM $tenantName_mod_roles_keycloak.policy_roles pr
-JOIN $tenantName_mod_roles_keycloak."policy" p
-    ON pr.policy_id = p.id;
+         JOIN $tenantName_mod_roles_keycloak."policy" p
+              ON pr.policy_id = p.id;
 
 -- 2) Backup user assignments
-CREATE TEMP TABLE policy_users_backup AS
-SELECT
-    pu.user_id,
-    p.name AS policy_name
+CREATE
+TEMP TABLE policy_users_backup AS
+SELECT pu.user_id,
+       p.name AS policy_name
 FROM $tenantName_mod_roles_keycloak.policy_users pu
-JOIN $tenantName_mod_roles_keycloak."policy" p
-    ON pu.policy_id = p.id;
+         JOIN $tenantName_mod_roles_keycloak."policy" p
+              ON pu.policy_id = p.id;
 
 -- 3) Remove existing assignments
-DELETE FROM $tenantName_mod_roles_keycloak.policy_roles;
-DELETE FROM $tenantName_mod_roles_keycloak.policy_users;
+DELETE
+FROM $tenantName_mod_roles_keycloak.policy_roles;
+DELETE
+FROM $tenantName_mod_roles_keycloak.policy_users;
 
 -- 4) Update policy UUIDs from staging table
 UPDATE $tenantName_mod_roles_keycloak."policy" p
-SET id = c.id
-FROM names_csv_staging c
+SET id = c.id FROM names_csv_staging c
 WHERE p.name = c.name
   AND c.id IS NOT NULL
-  AND p.id IS DISTINCT FROM c.id;
+  AND p.id IS DISTINCT
+FROM c.id;
 
 -- 5) Restore role assignments
 INSERT INTO $tenantName_mod_roles_keycloak.policy_roles (policy_id, role_id, required)
-SELECT
-    p.id,
-    b.role_id,
-    b.required
+SELECT p.id,
+       b.role_id,
+       b.required
 FROM policy_roles_backup b
-JOIN $tenantName_mod_roles_keycloak."policy" p
-    ON p.name = b.policy_name;
+         JOIN $tenantName_mod_roles_keycloak."policy" p
+              ON p.name = b.policy_name;
 
 -- 6) Restore user assignments
 INSERT INTO $tenantName_mod_roles_keycloak.policy_users (policy_id, user_id)
-SELECT
-    p.id,
-    b.user_id
+SELECT p.id,
+       b.user_id
 FROM policy_users_backup b
-JOIN $tenantName_mod_roles_keycloak."policy" p
-    ON p.name = b.policy_name;
+         JOIN $tenantName_mod_roles_keycloak."policy" p
+              ON p.name = b.policy_name;
 
 COMMIT;
 ```
@@ -517,3 +545,90 @@ export TENANT="diku"
 
 ./keycloak-scripts/repair-policy-uuids.sh
 ```
+
+## Repair Corrupted Role and Policy UUIDs [repair-role-policy-uuids.sh](keycloak-scripts/repair-role-policy-uuids.sh)
+
+`repair-policy-uuids.sh` (above) only fixes policy UUIDs. A same-cluster realm migration also hands roles brand-new Keycloak UUIDs, and `mod-roles-keycloak` stores that UUID as `role.id`. Every stored reference then points at the old id, so editing or deleting a role returns `404` from Keycloak. This script re-aligns both. Roles and policies must be fixed together, in one transaction: a role's UUID is embedded in its policy's name on both sides, so the ids have to be re-mapped before any name is rewritten.
+
+**How it works.** Roles and policies are matched between FOLIO and Keycloak *by name* (ids no longer line up). The script:
+
+1. Snapshots the current Keycloak role/policy ids and builds an old→new map, keyed by name.
+2. In a single FOLIO transaction, fixes `role.id` and `policy.id` and every row that points at them — `user_role` (role assignments), `role_capability`, `role_capability_set`, `role_loadable`, `role_loadable_permission`, `policy_roles`, `policy_users` — then rewrites the old id out of `policy.name` / `policy.description`.
+3. Rewrites the old id out of Keycloak's `resource_server_policy` names and, if stale, the role wiring in `policy_config`.
+
+With `DRY_RUN=true` it runs step 2 and rolls it back, prints what it would change, and skips Keycloak entirely. Re-run the script after a real run — a clean repair reports `Nothing to do`.
+
+### Running it
+
+Back up the schema first, then dry-run before the real thing:
+
+```bash
+export KC_DB_URL="postgresql://user:pass@host:5432/keycloak"
+export FOLIO_DB_URL="postgresql://user:pass@host:5432/folio"
+export TENANT="diku"
+
+pg_dump "$FOLIO_DB_URL" -n "${TENANT}_mod_roles_keycloak" > roles_backup.sql
+
+DRY_RUN=true ./keycloak-scripts/repair-role-policy-uuids.sh   # report only, nothing committed
+./keycloak-scripts/repair-role-policy-uuids.sh                # apply
+```
+
+| Variable       | Default                                 | Purpose                                                      |
+|----------------|-----------------------------------------|--------------------------------------------------------------|
+| `KC_DB_URL`    | *(required)*                            | Keycloak DB connection URL                                   |
+| `FOLIO_DB_URL` | *(required)*                            | FOLIO DB connection URL                                      |
+| `TENANT`       | *(required)*                            | Tenant / realm name                                          |
+| `DRY_RUN`      | `false`                                 | Run the FOLIO transaction, roll it back, print a report      |
+| `FORCE`        | `false`                                 | Skip roles that exist in FOLIO but not Keycloak (else abort) |
+| `WORK_DIR`     | `/tmp/repair-role-policy-uuids-$TENANT` | KC exports and the recovery map CSV                          |
+
+### Good to know
+
+- The FOLIO transaction takes `EXCLUSIVE` locks on the nine affected tables — readers are fine, concurrent writers wait — and a dry run takes them too. Between the FOLIO commit and the Keycloak rewrite, role management is briefly inconsistent.
+- The script aborts before writing anything if a table's columns don't match what it expects, so a schema change in a newer `mod-roles-keycloak` can't corrupt data silently.
+- A dry run still creates and drops its staging tables in the DB (each `psql` call is a separate session); it never touches the tenant's own tables.
+- `WORK_DIR` keeps the old→new map CSV on purpose — it's what you recover from if the run dies after the FOLIO commit but before Keycloak (see below). Delete it once roles are editable again.
+- Keycloak caches authorization data in memory, so after a real run either roll-restart the Keycloak nodes or call `POST /admin/realms/{tenant}/clear-realm-cache` (clears the authz cache cluster-wide). `mod-roles-keycloak` doesn't cache role ids, but its config caches have a 3600s TTL — restart it or wait out the TTL before managing the repaired roles.
+
+### Recovering from a half-finished run
+
+If the FOLIO transaction commits but the Keycloak rewrite fails, a re-run sees ids already matching, computes an empty map, and stops — pointing you here. Finish the Keycloak side by hand from the map CSV the failed run left in `WORK_DIR`:
+
+```bash
+psql "$KC_DB_URL" -v ON_ERROR_STOP=1 \
+  -c "DROP TABLE IF EXISTS role_uuid_map_staging;
+      CREATE TABLE role_uuid_map_staging (old_id uuid, new_id uuid, name text);" \
+  -c "\copy role_uuid_map_staging FROM '/tmp/repair-role-policy-uuids-${TENANT}/role_id_map.csv' WITH (FORMAT csv, HEADER true)"
+
+psql "$KC_DB_URL" -v ON_ERROR_STOP=1 <<SQL
+BEGIN;
+UPDATE resource_server_policy rsp
+SET name = replace(rsp.name, m.old_id::text, m.new_id::text)
+FROM role_uuid_map_staging m
+WHERE rsp.resource_server_id IN (
+        SELECT c.id FROM client c WHERE c.realm_id = (SELECT id FROM realm WHERE name = '${TENANT}'))
+  AND strpos(rsp.name, m.old_id::text) > 0;
+DO \$\$
+DECLARE n bigint;
+BEGIN
+  LOOP
+    UPDATE policy_config pc
+    SET value = replace(pc.value, m.old_id::text, m.new_id::text)
+    FROM role_uuid_map_staging m
+    WHERE pc.name = 'roles' AND strpos(pc.value, m.old_id::text) > 0
+      AND pc.policy_id IN (
+        SELECT rsp.id FROM resource_server_policy rsp
+        JOIN client c ON rsp.resource_server_id = c.id
+        WHERE c.realm_id = (SELECT id FROM realm WHERE name = '${TENANT}'));
+    GET DIAGNOSTICS n = ROW_COUNT;
+    EXIT WHEN n = 0;
+  END LOOP;
+END
+\$\$;
+COMMIT;
+SQL
+
+psql "$KC_DB_URL" -c "DROP TABLE role_uuid_map_staging;"
+```
+
+Then re-run the script — it must report `Nothing to do`, and invalidate the Keycloak cache as above.
