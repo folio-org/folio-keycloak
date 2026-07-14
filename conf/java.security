@@ -162,7 +162,7 @@ fips.provider.7=XMLDSig
 # specified, the "NativePRNG" implementation will be more preferred than
 # DRBG and SHA1PRNG in the Sun provider.
 #
-securerandom.source=file:/dev/random
+securerandom.source=file:/dev/urandom
 
 #
 # A list of known strong SecureRandom implementations.
