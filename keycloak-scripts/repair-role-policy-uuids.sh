@@ -1,21 +1,63 @@
 #!/usr/bin/env bash
-# repair-role-policy-uuids.sh — Repair role + policy UUID mapping after a realm migration
-# that regenerated Keycloak UUIDs: FOLIO's role.id / policy.id go stale and roles become
-# un-editable (404 from Keycloak). Role-and-policy counterpart of repair-policy-uuids.sh;
-# both are fixed in ONE FOLIO transaction because role ids are embedded in policy names
-# on both sides: ids are re-mapped by name BEFORE any name is rewritten.
+# repair-role-policy-uuids.sh — Re-align FOLIO mod_roles_keycloak with Keycloak after a tenant
+# realm is exported and re-imported into the SAME Keycloak cluster under a new name (the FOLIO
+# schema carried over as-is).
+#
+# WHAT BREAKS. Such a migration desynchronises up to three things by three different mechanisms.
+# Any one can occur without the others, so do not infer the whole picture from a single symptom:
+#   1. realm import  → role UUIDs regenerated (keycloak_role has a cluster-wide primary key and the
+#                      source realm still holds the old ids), leaving FOLIO's role.id stale and
+#                      roles un-editable (404 from Keycloak);
+#   2. user import   → folio user ids regenerated while Keycloak re-resolves its users by username,
+#                      so every 'Policy for user: <folio id>' name points at a user id that no
+#                      longer exists anywhere;
+#   3. policy import → policy UUIDs may be regenerated or may carry over intact. Intact ids with
+#                      stale NAME strings is a normal outcome, not a contradiction: the name embeds
+#                      an entity id, and it is the entity that moved.
+# Keycloak's own enforcement survives all three (policy_config is re-resolved on import); what
+# breaks is mod-roles-keycloak's ability to find its policies by name.
+#
+# HOW IT MATCHES. Policies are matched between FOLIO and Keycloak by a canonical ENTITY KEY, never
+# by policy name — a policy's name embeds the id of the entity it references, i.e. the very id that
+# desyncs. The key is routed by name shape and resolved from the live entity reference:
+#
+#     name shape                  key            resolved from
+#     Policy for role: <uuid>  →  role:<name>    KC: policy_config['roles'] → keycloak_role.name
+#                                                FOLIO: policy_roles.role_id → role.name
+#     Policy for user: <uuid>  →  user:<folioId> KC: policy_config['users'] → user_entity → attr 'user_id'
+#                                                FOLIO: policy_users.user_id
+#     anything else            →  name:<name>    the literal policy name (admin/TIME policies)
+#
+# Role names and folio user ids are stable across the migration, so the key matches even though the
+# ids in the names do not. Names are OUTPUT: rewritten from the maps, never a join key.
+#
+# WHAT IT SYNCHRONISES. role.id and policy.id (FOLIO adopts Keycloak's), the FOLIO child tables
+# referencing them, and every name/description string embedding a role id or folio user id on BOTH
+# sides (policies AND permissions). Anything it cannot synchronise is reported, never silently
+# skipped: unmatched policies, multi-entity or unresolvable policies, and — for the out-of-scope
+# "users were recreated" case — a hard abort (this script has no folio-user-id map source).
+#
+# WRITE ORDER — DO NOT SWAP. Keycloak is rewritten first, the FOLIO transaction commits second.
+# The two databases share no transaction, so a run can die between them; this order is what makes a
+# plain re-run sufficient. Both id maps are derived from FOLIO's ids still differing from Keycloak's,
+# and the Keycloak step rewrites only name/description STRINGS — never Keycloak ids. So after a crash
+# in between, the next run re-derives exactly the same maps and finishes. Commit FOLIO first instead
+# and the difference the maps are built from is gone, which is why that ordering needs a persisted
+# map and a resume mode. It had one; it was removed on purpose.
 #
 # Required: KC_DB_URL, FOLIO_DB_URL (postgresql://...), TENANT (realm name, e.g. "diku")
-# Optional: DRY_RUN  — "true": run the FOLIO transaction and ROLLBACK, print the report,
-#                      skip the Keycloak step entirely. Default: false.
-#           FORCE    — "true": skip (instead of abort on) roles that exist in FOLIO but
-#                      not in Keycloak. Default: false.
-#           WORK_DIR — Where the role id map CSV is persisted.
-#                      Default: /tmp/repair-role-policy-uuids-$TENANT
+# Optional: DRY_RUN — "true": skip the Keycloak rewrite, run the FOLIO transaction and ROLLBACK,
+#                     print the report. Nothing is written to either database. Default: false.
+#           FORCE   — "true": skip (instead of abort on) roles that exist in FOLIO but not Keycloak.
+#                     Default: false.
+#           WORK_DIR — Scratch space for the CSVs the run passes between the two databases; kept
+#                     afterwards for diagnosis only. Default: /tmp/repair-role-policy-uuids-$TENANT
 #
-# Production prerequisites: run in a maintenance window (the FOLIO transaction locks the
-# affected tables) and take a schema backup first:
+# Production prerequisites: run in a maintenance window (the FOLIO transaction locks the affected
+# tables) and take a schema backup first:
 #   pg_dump "$FOLIO_DB_URL" -n "${TENANT}_mod_roles_keycloak" > roles_backup.sql
+# Keycloak caches authorization data in memory: after a repair, rolling-restart all Keycloak nodes
+# OR call POST /admin/realms/$TENANT/clear-realm-cache before managing the repaired roles.
 
 set -euo pipefail
 
@@ -36,31 +78,196 @@ DRY_RUN="${DRY_RUN:-false}"
 FORCE="${FORCE:-false}"
 WORK_DIR="${WORK_DIR:-/tmp/repair-role-policy-uuids-$TENANT}"
 SCHEMA="${TENANT}_mod_roles_keycloak"
-MAP_CSV="$WORK_DIR/role_id_map.csv"
+# The maps are computed in FOLIO but applied in Keycloak; these CSVs are the transport between the
+# two connections, nothing more. They are not a recovery mechanism — a failed run is re-run.
+ROLE_MAP_CSV="$WORK_DIR/role_id_map.csv"     # old_id,new_id,name  (role UUIDs, FOLIO→KC)
+USER_MAP_CSV="$WORK_DIR/user_id_map.csv"     # old_id,new_id       (folio user ids in KC names)
+KC_LEFTOVER=0                                # set by kc_rewrite; read by the final status
 mkdir -p "$WORK_DIR"
 
-# psql wrappers. NOTE: psql does NOT interpolate :variables in `-c` strings, and \copy
-# interpolates nothing at all — statements using :'tenant'/:"schema" must go via stdin,
-# and \copy lines must have the schema expanded by bash.
+# psql wrappers. NOTE: psql does NOT interpolate :variables in `-c` strings, and \copy interpolates
+# nothing — statements using :'tenant'/:"schema" must go via stdin, and \copy lines must have the
+# schema/path expanded by bash.
 run_folio() { psql "$FOLIO_DB_URL" -v ON_ERROR_STOP=1 -v schema="$SCHEMA" -v tenant="$TENANT" "$@"; }
 run_kc()    { psql "$KC_DB_URL"    -v ON_ERROR_STOP=1 -v tenant="$TENANT" "$@"; }
 q_folio()   { run_folio -qtA "$@"; }
 q_kc()      { run_kc -qtA "$@"; }
 
+# Count Keycloak names of the form 'Policy/…​ for role|user: <id>' whose embedded id resolves to
+# neither a live realm role nor a live folio user (user_id attribute). Used twice: as work detection
+# before the run (names left pointing at entities the migration replaced) and as the leftover check
+# after the rewrite (a stale id no map covered — e.g. a user with permissions but no policy).
+kc_unresolved_count() {
+    q_kc <<'SQL'
+WITH ids AS (
+  SELECT DISTINCT substring(rsp.name FROM 'for (?:role|user):? ''?([0-9a-fA-F-]{36})') AS uid
+  FROM resource_server_policy rsp
+  JOIN client c ON rsp.resource_server_id = c.id
+  WHERE c.realm_id = (SELECT id FROM realm WHERE name = :'tenant')
+    AND rsp.name ~ 'for (role|user):? '
+)
+SELECT count(*) FROM ids
+WHERE uid IS NOT NULL
+  AND uid NOT IN (SELECT id::text FROM keycloak_role
+                  WHERE realm_id = (SELECT id FROM realm WHERE name = :'tenant') AND client_role = false)
+  AND uid NOT IN (SELECT ua.value FROM user_attribute ua JOIN user_entity ue ON ue.id = ua.user_id
+                  WHERE ua.name = 'user_id' AND ue.realm_id = (SELECT id FROM realm WHERE name = :'tenant'));
+SQL
+}
+
 cleanup_staging() {
     run_folio <<SQL || warn "Failed to drop FOLIO staging tables."
 DROP TABLE IF EXISTS :"schema".kc_roles_staging;
 DROP TABLE IF EXISTS :"schema".kc_policies_staging;
+DROP TABLE IF EXISTS :"schema".policy_key_staging;
 DROP TABLE IF EXISTS :"schema".role_id_map_staging;
+DROP TABLE IF EXISTS :"schema".kc_user_ids_staging;
 SQL
-    run_kc -c "DROP TABLE IF EXISTS role_uuid_map_staging;" >/dev/null 2>&1 || true
+    run_kc -c "DROP TABLE IF EXISTS role_uuid_map_staging; DROP TABLE IF EXISTS user_uuid_map_staging;" >/dev/null 2>&1 || true
+}
+
+# Everything this run could NOT synchronise. Called before every exit that follows classification —
+# including the "nothing to repair" ones, where silence would otherwise read as "all clear".
+# Reads the staging tables, so it must run before cleanup_staging; uses ur_total/ur_matched from
+# the pre-flight, so it must run after step 3.
+report_skipped() {
+    local skipped
+    skipped=$(q_folio <<'SQL'
+SELECT string_agg(src || ' ' || class || ' "' || name || '" [' || status || ']', chr(10) ORDER BY status, name)
+FROM (
+  SELECT 'FOLIO' AS src, class, name, status FROM :"schema".policy_key_staging  WHERE status IN ('folio_only','multi','unresolved')
+  UNION ALL
+  SELECT 'KC',    class, name, status FROM :"schema".kc_policies_staging WHERE status IN ('kc_only','multi','unresolved')
+) d;
+SQL
+) || die "Failed to collect the skipped-policy report."
+    local stale_users=""
+    if [[ "$ur_matched" != "$ur_total" ]]; then
+        stale_users=$(q_folio <<'SQL'
+SELECT string_agg(DISTINCT ur.user_id::text, chr(10))
+FROM :"schema".user_role ur
+LEFT JOIN :"schema".kc_user_ids_staging k ON k.folio_user_id = ur.user_id
+WHERE k.folio_user_id IS NULL;
+SQL
+) || die "Failed to collect the stale user-link report."
+    fi
+    if [[ -n "$skipped" || -n "$stale_users" ]]; then
+        warn "Could not synchronise (reported, not repaired):"
+        [[ -n "$skipped" ]] && printf '%s\n' "$skipped" >&2
+        [[ -n "$stale_users" ]] && warn "FOLIO user_role.user_id not known to Keycloak (stale user link):" && printf '%s\n' "$stale_users" >&2
+        warn "(Anything created after the Keycloak export also lands here; re-run to confirm it is genuine.)"
+    else
+        log "Could not synchronise: nothing — every policy on both sides found its counterpart."
+    fi
+}
+
+# ==========================================================================================
+# Keycloak string rewrite (step 6, the FIRST of the two writes). Rewrites resource_server_policy
+# name + description and policy_config['roles'] from the two map CSVs. Idempotent: it substitutes
+# old ids that are no longer present after a first pass, so a repeat is a no-op.
+# ==========================================================================================
+kc_rewrite() {
+    log "[6] Keycloak name/description rewrite..."
+
+    run_kc <<'SQL' || die "Failed to create Keycloak staging tables."
+DROP TABLE IF EXISTS role_uuid_map_staging;
+DROP TABLE IF EXISTS user_uuid_map_staging;
+CREATE TABLE role_uuid_map_staging (old_id uuid, new_id uuid, name text);
+CREATE TABLE user_uuid_map_staging (old_id uuid, new_id uuid);
+SQL
+    run_kc -c "\copy role_uuid_map_staging (old_id, new_id, name) FROM '$ROLE_MAP_CSV' WITH (FORMAT csv, HEADER true);" \
+        || die "Failed to load the role id map into Keycloak."
+    run_kc -c "\copy user_uuid_map_staging (old_id, new_id) FROM '$USER_MAP_CSV' WITH (FORMAT csv, HEADER true);" \
+        || die "Failed to load the user id map into Keycloak."
+
+    # Empty maps mean nothing embeds a stale id in Keycloak (only FOLIO ids had drifted, or the names
+    # were already current) — a legitimate no-op, not an error.
+    local map_rows
+    map_rows=$(q_kc -c "SELECT (SELECT count(*) FROM role_uuid_map_staging) + (SELECT count(*) FROM user_uuid_map_staging);")
+    if [[ "${map_rows:-0}" == "0" ]]; then
+        log "No Keycloak-side rewrite needed (maps are empty)."
+        KC_LEFTOVER="$(kc_unresolved_count)"; KC_LEFTOVER="${KC_LEFTOVER:-0}"
+        return 0
+    fi
+
+    # Abort cleanly rather than letting the UNIQUE (name, resource_server_id) constraint fire
+    # mid-rewrite. Nothing has been written to either database at this point.
+    local collision
+    collision=$(q_kc <<'SQL'
+WITH m AS (
+  SELECT old_id::text AS old_id, new_id::text AS new_id FROM role_uuid_map_staging
+  UNION ALL
+  SELECT old_id::text, new_id::text FROM user_uuid_map_staging),
+rewritten AS (
+  SELECT rsp.resource_server_id AS rs,
+         COALESCE((SELECT replace(rsp.name, m.old_id, m.new_id) FROM m
+                   WHERE strpos(rsp.name, m.old_id) > 0 LIMIT 1), rsp.name) AS nm
+  FROM resource_server_policy rsp
+  JOIN client c ON rsp.resource_server_id = c.id
+  WHERE c.realm_id = (SELECT id FROM realm WHERE name = :'tenant'))
+SELECT count(*) FROM (SELECT rs, nm FROM rewritten GROUP BY rs, nm HAVING count(*) > 1) d;
+SQL
+)
+    [[ "$collision" == "0" ]] || die "Keycloak rewrite would create $collision duplicate policy name(s). Nothing was written; resolve the duplicate names in Keycloak (maps for reference in $WORK_DIR) and re-run."
+
+    run_kc <<'SQL' || die "Keycloak rewrite failed; it is a single transaction, so nothing was written. Fix the cause and re-run."
+\set ON_ERROR_STOP on
+BEGIN;
+-- psql does not interpolate :'tenant' inside the dollar-quoted DO body below; pass it via a
+-- transaction-local GUC instead.
+SELECT set_config('repair.tenant', :'tenant', true);
+
+-- Names + descriptions embedding a role id (policies and 'access for role ...' permissions) and a
+-- folio user id (policies and 'access for user ...' permissions). Both maps, one pass each: every
+-- target is a resource_server_policy row, so substring substitution covers all of them.
+UPDATE resource_server_policy rsp
+SET name        = replace(rsp.name,        m.old_id::text, m.new_id::text),
+    description = replace(coalesce(rsp.description, ''), m.old_id::text, m.new_id::text)
+FROM (SELECT old_id, new_id FROM role_uuid_map_staging
+      UNION ALL SELECT old_id, new_id FROM user_uuid_map_staging) m
+WHERE rsp.resource_server_id IN (
+        SELECT c.id FROM client c WHERE c.realm_id = (SELECT id FROM realm WHERE name = :'tenant'))
+  AND (strpos(rsp.name, m.old_id::text) > 0 OR strpos(coalesce(rsp.description,''), m.old_id::text) > 0);
+
+-- policy_config 'roles' values are JSON arrays that may embed SEVERAL stale role ids, while
+-- UPDATE ... FROM applies at most one map row per target row. Loop until no row matches (capped, so
+-- a swapped map cannot spin forever). user policy_config['users'] holds internal KC user_entity.id,
+-- which the import re-resolved — it is already correct and NOT a rewrite target.
+DO $config_remap$
+DECLARE n bigint; guard int := 0;
+BEGIN
+  LOOP
+    UPDATE policy_config pc
+    SET value = replace(pc.value, m.old_id::text, m.new_id::text)
+    FROM role_uuid_map_staging m
+    WHERE pc.name = 'roles'
+      AND strpos(pc.value, m.old_id::text) > 0
+      AND pc.policy_id IN (
+        SELECT rsp.id FROM resource_server_policy rsp
+        JOIN client c ON rsp.resource_server_id = c.id
+        WHERE c.realm_id = (SELECT id FROM realm WHERE name = current_setting('repair.tenant')));
+    GET DIAGNOSTICS n = ROW_COUNT;
+    guard := guard + 1;
+    EXIT WHEN n = 0;
+    IF guard > 100 THEN RAISE EXCEPTION 'policy_config remap did not converge in 100 passes (map has a chain or swap)'; END IF;
+  END LOOP;
+END
+$config_remap$;
+COMMIT;
+SQL
+
+    # Leftover check: after all rewrites, any name still embedding an id that resolves to no live
+    # entity is a stale id no map covered (e.g. a user with permissions but no policy). Reported, not
+    # fatal, but the run ends on a WARN, not "complete".
+    KC_LEFTOVER="$(kc_unresolved_count)"
+    KC_LEFTOVER="${KC_LEFTOVER:-0}"
 }
 
 log "tenant=$TENANT schema=$SCHEMA dry_run=$DRY_RUN force=$FORCE work_dir=$WORK_DIR"
 
-# ---------- Step 1: Export current roles and policies from Keycloak ----------
+# ---------- Step 1: Export current roles, policies and user ids from Keycloak ----------
 
-log "[1] Exporting Keycloak realm roles and policies..."
+log "[1] Exporting Keycloak realm roles, policies and user ids..."
 
 echo "SELECT 1 FROM realm WHERE name = :'tenant';" | q_kc | grep -q 1 \
     || die "Realm '$TENANT' not found in Keycloak."
@@ -74,33 +281,123 @@ COPY (
 ) TO STDOUT WITH (FORMAT csv, HEADER true);
 SQL
 
+# Policies restricted to the match set (role/user/time); scope/resource/client policies are not
+# match candidates — they are rewrite targets only. Per policy we emit the canonical key plus refs
+# (how many entities it references), which drives the multi-entity classification; an entity that
+# does not resolve contributes no name, leaving the key empty. Config shapes differ:
+#   roles  → [{"id":"<roleId>","required":false}, ...]   (array of objects)
+#   users  → ["<user_entity.id>", ...]                    (array of scalars)
 q_kc <<'SQL' > "$WORK_DIR/kc_policies.csv" || die "Failed to export Keycloak policies."
 COPY (
-    SELECT rsp.id, rsp.name
+  WITH pol AS (
+    SELECT rsp.id, rsp.name, rsp.type
     FROM resource_server_policy rsp
     JOIN client c ON rsp.resource_server_id = c.id
     WHERE c.realm_id = (SELECT id FROM realm WHERE name = :'tenant')
+      AND rsp.type IN ('role','user','time')
+  ),
+  role_ref AS (   -- role policies: config['roles'] -> keycloak_role.name
+    SELECT p.id, count(*) AS refs, min(kr.name) AS ent
+    FROM pol p
+    JOIN policy_config pc ON pc.policy_id = p.id AND pc.name = 'roles' AND pc.value LIKE '[%'
+    CROSS JOIN LATERAL json_array_elements(pc.value::json) e
+    LEFT JOIN keycloak_role kr ON kr.id = (e->>'id')
+      AND kr.realm_id = (SELECT id FROM realm WHERE name = :'tenant') AND kr.client_role = false
+    WHERE p.name LIKE 'Policy for role: %'
+    GROUP BY p.id
+  ),
+  user_ref AS (   -- user policies: config['users'] -> user_entity.id -> attr 'user_id' (folio id)
+    -- count DISTINCT e, not rows: a user carrying two 'user_id' attribute rows would otherwise
+    -- inflate refs to 2 and get the policy written off as multi-entity. (The role branch above
+    -- joins on a primary key, so count(*) is already one row per referenced entity there — and
+    -- DISTINCT is not even available on it, json having no equality operator.)
+    SELECT p.id, count(DISTINCT e) AS refs, min(ua.value) AS ent
+    FROM pol p
+    JOIN policy_config pc ON pc.policy_id = p.id AND pc.name = 'users' AND pc.value LIKE '[%'
+    CROSS JOIN LATERAL json_array_elements_text(pc.value::json) e
+    LEFT JOIN user_attribute ua ON ua.user_id = e AND ua.name = 'user_id'
+    WHERE p.name LIKE 'Policy for user: %'
+    GROUP BY p.id
+  )
+  SELECT p.id, p.name, p.type AS class,
+         COALESCE(rr.refs, ur.refs, 0) AS refs,
+         CASE
+           WHEN p.name LIKE 'Policy for role: %' THEN 'role:' || COALESCE(rr.ent, '')
+           WHEN p.name LIKE 'Policy for user: %' THEN 'user:' || COALESCE(ur.ent, '')
+           ELSE 'name:' || p.name
+         END AS key
+  FROM pol p
+  LEFT JOIN role_ref rr ON rr.id = p.id
+  LEFT JOIN user_ref ur ON ur.id = p.id
 ) TO STDOUT WITH (FORMAT csv, HEADER true);
 SQL
 
-# ---------- Step 2: Stage the export in FOLIO and build the role map ---------
+# All folio user ids Keycloak knows (via the user_id attribute), for the §4 user-link check.
+q_kc <<'SQL' > "$WORK_DIR/kc_user_ids.csv" || die "Failed to export Keycloak user ids."
+COPY (
+    SELECT DISTINCT ua.value AS folio_user_id
+    FROM user_attribute ua
+    JOIN user_entity ue ON ue.id = ua.user_id
+    WHERE ua.name = 'user_id'
+      AND ue.realm_id = (SELECT id FROM realm WHERE name = :'tenant')
+) TO STDOUT WITH (FORMAT csv, HEADER true);
+SQL
 
-log "[2] Staging Keycloak export in FOLIO..."
+# ---------- Step 2: Stage the export in FOLIO, build maps, classify ----------
+
+log "[2] Staging Keycloak export in FOLIO and classifying..."
 
 run_folio <<'SQL' || die "Failed to create staging tables."
 DROP TABLE IF EXISTS :"schema".kc_roles_staging;
 DROP TABLE IF EXISTS :"schema".kc_policies_staging;
+DROP TABLE IF EXISTS :"schema".policy_key_staging;
 DROP TABLE IF EXISTS :"schema".role_id_map_staging;
-CREATE TABLE :"schema".kc_roles_staging   (id uuid, name text);
-CREATE TABLE :"schema".kc_policies_staging (id uuid, name text);
+DROP TABLE IF EXISTS :"schema".kc_user_ids_staging;
+CREATE TABLE :"schema".kc_roles_staging    (id uuid, name text);
+CREATE TABLE :"schema".kc_policies_staging (id uuid, name text, class text, refs int, key text, status text);
+CREATE TABLE :"schema".policy_key_staging  (id uuid, name text, class text, refs int, key text, status text);
 CREATE TABLE :"schema".role_id_map_staging (old_id uuid, new_id uuid, name text);
+CREATE TABLE :"schema".kc_user_ids_staging (folio_user_id uuid);
 SQL
 
 run_folio <<SQL || die "Failed to load staging tables."
 \\copy ${SCHEMA}.kc_roles_staging (id, name) FROM '$WORK_DIR/kc_roles.csv' WITH (FORMAT csv, HEADER true)
-\\copy ${SCHEMA}.kc_policies_staging (id, name) FROM '$WORK_DIR/kc_policies.csv' WITH (FORMAT csv, HEADER true)
+\\copy ${SCHEMA}.kc_policies_staging (id, name, class, refs, key) FROM '$WORK_DIR/kc_policies.csv' WITH (FORMAT csv, HEADER true)
+\\copy ${SCHEMA}.kc_user_ids_staging (folio_user_id) FROM '$WORK_DIR/kc_user_ids.csv' WITH (FORMAT csv, HEADER true)
 SQL
 
+# FOLIO-side key staging, same shape and same name-shape classifier as the KC export.
+run_folio <<'SQL' || die "Failed to build FOLIO key staging."
+INSERT INTO :"schema".policy_key_staging (id, name, class, refs, key)
+WITH pol AS (
+  SELECT p.id, p.name, p.type::text AS type
+  FROM :"schema".policy p
+  WHERE p.type IN ('ROLE','USER','TIME')
+),
+role_ref AS (
+  SELECT pr.policy_id AS id, count(*) AS refs, min(r.name) AS ent
+  FROM :"schema".policy_roles pr
+  LEFT JOIN :"schema".role r ON r.id = pr.role_id
+  GROUP BY pr.policy_id
+),
+user_ref AS (
+  SELECT pu.policy_id AS id, count(*) AS refs, min(pu.user_id::text) AS ent
+  FROM :"schema".policy_users pu
+  GROUP BY pu.policy_id
+)
+SELECT p.id, p.name, p.type,
+       COALESCE(rr.refs, ur.refs, 0),
+       CASE
+         WHEN p.name LIKE 'Policy for role: %' THEN 'role:' || COALESCE(rr.ent, '')
+         WHEN p.name LIKE 'Policy for user: %' THEN 'user:' || COALESCE(ur.ent, '')
+         ELSE 'name:' || p.name
+       END
+FROM pol p
+LEFT JOIN role_ref rr ON rr.id = p.id
+LEFT JOIN user_ref ur ON ur.id = p.id;
+SQL
+
+# Role id map: same-named roles whose ids differ. Role NAME is the stable key.
 run_folio <<'SQL' || die "Failed to build the role id map."
 INSERT INTO :"schema".role_id_map_staging (old_id, new_id, name)
 SELECT r.id, k.id, r.name
@@ -109,12 +406,41 @@ JOIN :"schema".kc_roles_staging k ON k.name = r.name
 WHERE r.id IS DISTINCT FROM k.id;
 SQL
 
-# ---------- Step 3: Pre-flight checks -----------------------------------------
+# Status, computed once on both staging tables (read everywhere downstream):
+#   multi       refs > 1                       (key is not 1:1 — cannot repair safely)
+#   unresolved  key is 'role:' / 'user:' bare  (the referenced entity contributed no name)
+#   candidate → matched | folio_only | kc_only  by cross-side key
+# The unresolved test is on the KEY, not on a count, because an empty key is exactly what makes a
+# policy unmatchable — and a bare 'role:' would otherwise collide with every other bare 'role:'.
+# It covers a policy referencing nothing at all as well as one whose reference this script cannot
+# follow: a KC role policy over a CLIENT role resolves to no name here, because the join is
+# restricted to realm roles. Name-shaped keys ('name:<policy name>') legitimately carry refs = 0.
+# Known asymmetry: refs counts the entity reference only for 'Policy for role|user:'-shaped names;
+# a custom-named admin policy over several roles is 'multi' on the FOLIO side (which counts
+# policy_roles regardless of name) but keyed by name → 'kc_only' on the KC side. Both are skipped and
+# reported, so it is safe — just not symmetric.
+run_folio <<'SQL' || die "Failed to classify staged policies."
+UPDATE :"schema".kc_policies_staging SET status =
+  CASE WHEN refs > 1 THEN 'multi' WHEN key IN ('role:','user:') THEN 'unresolved' ELSE 'candidate' END;
+UPDATE :"schema".policy_key_staging SET status =
+  CASE WHEN refs > 1 THEN 'multi' WHEN key IN ('role:','user:') THEN 'unresolved' ELSE 'candidate' END;
+
+UPDATE :"schema".policy_key_staging f SET status = 'matched'
+WHERE f.status = 'candidate'
+  AND f.key IN (SELECT key FROM :"schema".kc_policies_staging WHERE status = 'candidate');
+UPDATE :"schema".kc_policies_staging k SET status = 'matched'
+WHERE k.status = 'candidate'
+  AND k.key IN (SELECT key FROM :"schema".policy_key_staging WHERE status = 'matched');
+UPDATE :"schema".policy_key_staging SET status = 'folio_only' WHERE status = 'candidate';
+UPDATE :"schema".kc_policies_staging SET status = 'kc_only'   WHERE status = 'candidate';
+SQL
+
+# ---------- Step 3: Pre-flight checks ----------
 
 log "[3] Pre-flight checks..."
 
-# Hard-coded reinsert column lists MUST match the live schema: an incomplete list would
-# silently NULL/reset columns on reinsert (DEFAULT columns do not error). Abort on drift.
+# Hard-coded reinsert column lists MUST match the live schema: an incomplete list would silently
+# NULL/reset columns on reinsert (DEFAULT columns do not error). Abort on drift.
 col_mismatch=$(q_folio <<'SQL'
 WITH expected(tbl, cols) AS (
   VALUES
@@ -143,77 +469,118 @@ SQL
 [[ -z "$col_mismatch" ]] || die "Schema drift detected; fix the script's column lists before running:
 $col_mismatch"
 
-# Names are the mapping keys — duplicates would make the repair non-deterministic.
-dup_roles=$(echo 'SELECT string_agg(name, chr(44)) FROM (SELECT name FROM :"schema".kc_roles_staging GROUP BY name HAVING count(*) > 1) d;' | q_folio)
+# Duplicate role names would make the role map non-deterministic.
+dup_roles=$(echo 'SELECT string_agg(name, chr(44) ORDER BY name) FROM (SELECT name FROM :"schema".kc_roles_staging GROUP BY name HAVING count(*) > 1) d;' | q_folio)
 [[ -z "$dup_roles" ]] || die "Duplicate realm role names in Keycloak (cannot map by name): $dup_roles"
-dup_policies=$(echo 'SELECT string_agg(name, chr(44)) FROM (SELECT name FROM :"schema".kc_policies_staging GROUP BY name HAVING count(*) > 1) d;' | q_folio)
-[[ -z "$dup_policies" ]] || die "Duplicate policy names across Keycloak resource servers (cannot map by name): $dup_policies"
 
-folio_only=$(q_folio <<'SQL'
-SELECT string_agg(r.name || ' (' || r.id || ')', ', ')
+# ABORT 1: duplicate effective key among match-eligible policies (either side). A duplicate key
+# fans out the id UPDATE non-deterministically. Report the keys and stop.
+dup_keys=$(q_folio <<'SQL'
+SELECT string_agg(src || ':' || key, chr(44) ORDER BY key) FROM (
+  SELECT 'FOLIO' AS src, key FROM :"schema".policy_key_staging  WHERE status = 'matched' GROUP BY key HAVING count(*) > 1
+  UNION ALL
+  SELECT 'KC',    key FROM :"schema".kc_policies_staging WHERE status = 'matched' GROUP BY key HAVING count(*) > 1
+) d;
+SQL
+)
+[[ -z "$dup_keys" ]] || die "Duplicate effective policy key(s) — cannot map deterministically: $dup_keys"
+
+# ABORT 2: user link broken (out-of-scope "users recreated" migration). If NONE of FOLIO's
+# user_role.user_id values is known to Keycloak as a user_id attribute, folio user ids were
+# regenerated and this script has no map source for them — abort. A partial overlap is repaired
+# where possible; the stale rows are enumerated in the report (see below), never silently passed.
+IFS='|' read -r ur_total ur_matched < <(q_folio <<'SQL'
+SELECT count(DISTINCT ur.user_id),
+       count(DISTINCT ur.user_id) FILTER (WHERE k.folio_user_id IS NOT NULL)
+FROM :"schema".user_role ur
+LEFT JOIN :"schema".kc_user_ids_staging k ON k.folio_user_id = ur.user_id;
+SQL
+)
+ur_total="${ur_total:-0}"; ur_matched="${ur_matched:-0}"
+# Zero overlap is only evidence of regenerated user ids when there are enough rows for it to mean
+# something: on a nearly empty tenant the one or two users present may simply not be provisioned in
+# Keycloak yet (created in FOLIO, not yet synced), and aborting the whole repair over that would be
+# wrong. Below the sample size the mismatched rows still surface in the skipped report.
+USER_LINK_MIN_SAMPLE=3
+if [[ "$ur_total" -ge "$USER_LINK_MIN_SAMPLE" && "$ur_matched" == "0" ]]; then
+    die "User link broken: none of $ur_total FOLIO user_role.user_id values is known to Keycloak (user_id attribute). Folio user ids were regenerated — this migration ('users recreated') is out of scope; repair user provisioning first."
+fi
+
+# ABORT 3: roles present in FOLIO but not Keycloak (existing guard).
+folio_only_roles=$(q_folio <<'SQL'
+SELECT string_agg(r.name || ' (' || r.id || ')', ', ' ORDER BY r.name)
 FROM :"schema".role r LEFT JOIN :"schema".kc_roles_staging k ON k.name = r.name
 WHERE k.id IS NULL;
 SQL
 )
-if [[ -n "$folio_only" ]]; then
+if [[ -n "$folio_only_roles" ]]; then
     if [[ "$FORCE" == "true" ]]; then
-        warn "Roles present in FOLIO but not in Keycloak (FORCE => skipped, NOT repaired): $folio_only"
+        warn "Roles present in FOLIO but not in Keycloak (FORCE => skipped, NOT repaired): $folio_only_roles"
     else
-        die "Roles present in FOLIO but not in Keycloak (set FORCE=true to skip them): $folio_only"
+        die "Roles present in FOLIO but not in Keycloak (set FORCE=true to skip them): $folio_only_roles"
     fi
 fi
 
-# Work detection: role/policy id drift + stale role ids embedded in names (either side).
+# ---------- Step 4: Work detection ----------
+
+# Three independent classes of work: drifted role ids, drifted policy ids among matched entities, and
+# names still embedding an id that resolves to nothing. Any one of them alone is a real repair — a
+# migration can regenerate folio user ids without moving a single policy id, which leaves nothing but
+# stale name strings.
 role_diff=$(echo 'SELECT count(*) FROM :"schema".role_id_map_staging;' | q_folio)
 policy_diff=$(q_folio <<'SQL'
-SELECT count(*) FROM :"schema".policy p
-JOIN :"schema".kc_policies_staging k ON k.name = p.name
-WHERE p.id IS DISTINCT FROM k.id;
+SELECT count(*) FROM :"schema".policy_key_staging f
+JOIN :"schema".kc_policies_staging k ON k.key = f.key AND k.status = 'matched'
+WHERE f.status = 'matched' AND f.id IS DISTINCT FROM k.id;
 SQL
 )
-folio_stale=$(q_folio <<'SQL'
-SET search_path TO :"schema";
-SELECT count(*) FROM policy
-WHERE name LIKE 'Policy for role: %'
-  AND substring(name FROM 'Policy for role: (.*)$') NOT IN (SELECT id::text FROM role);
-SQL
-)
-kc_stale=$(q_kc <<'SQL'
-WITH ids AS (
-  SELECT DISTINCT substring(rsp.name FROM 'for role:? ''?([0-9a-fA-F-]{36})') AS uid
-  FROM resource_server_policy rsp
-  JOIN client c ON rsp.resource_server_id = c.id
-  WHERE c.realm_id = (SELECT id FROM realm WHERE name = :'tenant')
-    AND (rsp.name LIKE 'Policy for role: %' OR rsp.name LIKE '% access for role %')
-)
-SELECT count(*) FROM ids
-WHERE uid IS NOT NULL AND uid NOT IN (
-  SELECT id::text FROM keycloak_role
-  WHERE realm_id = (SELECT id FROM realm WHERE name = :'tenant') AND client_role = false);
-SQL
-)
-log "    role id mismatches: $role_diff, policy id mismatches: $policy_diff, stale names: FOLIO=$folio_stale KC=$kc_stale"
+kc_stale=$(kc_unresolved_count)
+log "    role id mismatches: $role_diff, policy id mismatches: $policy_diff, stale KC names: $kc_stale"
 
-if [[ "$role_diff" == "0" && "$policy_diff" == "0" ]]; then
-    if [[ "$folio_stale" == "0" && "$kc_stale" == "0" ]]; then
-        log "Nothing to do: FOLIO ids already match Keycloak and no stale names. Exiting."
-        cleanup_staging
-        exit 0
-    fi
-    die "Ids match but stale names remain (FOLIO=$folio_stale, KC=$kc_stale) — a previous run likely failed between the FOLIO commit and the Keycloak step. See 'Manual recovery' in README.md (uses $MAP_CSV from that run)."
+# Everything this run cannot synchronise, reported once, before either database is written — so it
+# is on the operator's screen whichever way the run ends. It reads only the staging tables, which
+# neither write touches, so the content is the same wherever it is called.
+report_skipped
+
+if [[ "$role_diff" == "0" && "$policy_diff" == "0" && "$kc_stale" == "0" ]]; then
+    log "Nothing to repair: FOLIO ids already match Keycloak and no name embeds a dead id."
+    cleanup_staging
+    exit 0
 fi
 
-# ---------- Step 4: Persist the role id map (recovery key) --------------------
+# ---------- Step 5: Write the map CSVs (transport into the Keycloak connection) ----------
 
-echo 'COPY (SELECT old_id, new_id, name FROM :"schema".role_id_map_staging) TO STDOUT WITH (FORMAT csv, HEADER true);' \
-    | q_folio > "$MAP_CSV" || die "Failed to write role id map."
-log "[4] Role id map written to $MAP_CSV"
+echo 'COPY (SELECT old_id, new_id, name FROM :"schema".role_id_map_staging ORDER BY name) TO STDOUT WITH (FORMAT csv, HEADER true);' \
+    | q_folio > "$ROLE_MAP_CSV" || die "Failed to write role id map."
 
-# ---------- Step 5: FOLIO transaction (id fix + name rewrite) -----------------
+# User map for the Keycloak rewrite: for each matched user policy, the folio user id embedded in the
+# KC name (stale) → FOLIO's policy_users.user_id (current). Empty when KC names are already current.
+q_folio <<'SQL' > "$USER_MAP_CSV" || die "Failed to write user id map."
+COPY (
+  SELECT DISTINCT substring(k.name FROM 'Policy for user: ([0-9a-fA-F-]{36})') AS old_id,
+         pu.user_id AS new_id
+  FROM :"schema".kc_policies_staging k
+  JOIN :"schema".policy_key_staging f ON f.key = k.key AND f.status = 'matched'
+  JOIN :"schema".policy_users pu ON pu.policy_id = f.id
+  WHERE k.status = 'matched' AND k.key LIKE 'user:%'
+    AND substring(k.name FROM 'Policy for user: ([0-9a-fA-F-]{36})') IS DISTINCT FROM pu.user_id::text
+) TO STDOUT WITH (FORMAT csv, HEADER true);
+SQL
+log "[5] Maps written to $WORK_DIR (role_id_map.csv, user_id_map.csv)"
+
+# ---------- Step 6: Keycloak rewrite — the FIRST write. See the WRITE ORDER note at the top. ----------
+
+if [[ "$DRY_RUN" == "true" ]]; then
+    log "[6] DRY_RUN: skipping the Keycloak rewrite (nothing is written to Keycloak)."
+else
+    kc_rewrite
+fi
+
+# ---------- Step 7: FOLIO transaction (id fix + name rewrite) — the SECOND write ----------
 
 tx_end="COMMIT"
 [[ "$DRY_RUN" == "true" ]] && tx_end="ROLLBACK"
-log "[5] FOLIO transaction (end=$tx_end)..."
+log "[7] FOLIO transaction (end=$tx_end)..."
 
 run_folio -v tx_end="$tx_end" <<'SQL' || die "FOLIO transaction failed (rolled back)."
 \set ON_ERROR_STOP on
@@ -225,13 +592,24 @@ LOCK TABLE role, policy, user_role, role_capability, role_capability_set,
            role_loadable, role_loadable_permission, policy_roles, policy_users
 IN EXCLUSIVE MODE;
 
--- Maps must be built while names still embed the OLD role ids on both sides.
+-- Maps built while names still embed the OLD ids. policy_map: matched policies whose ids differ.
 CREATE TEMP TABLE role_map AS
   SELECT old_id, new_id, name FROM role_id_map_staging;
 CREATE TEMP TABLE policy_map AS
-  SELECT p.id AS old_id, k.id AS new_id, p.name
-  FROM policy p JOIN kc_policies_staging k ON k.name = p.name
-  WHERE p.id IS DISTINCT FROM k.id;
+  SELECT f.id AS old_id, k.id AS new_id
+  FROM policy_key_staging f
+  JOIN kc_policies_staging k ON k.key = f.key AND k.status = 'matched'
+  WHERE f.status = 'matched' AND f.id IS DISTINCT FROM k.id;
+-- FOLIO-side user map: folio user id embedded in a matched user policy's FOLIO name (if stale)
+-- → policy_users.user_id. Empty in the carry-over case (FOLIO names are already current); present
+-- only if a FOLIO user-policy name disagrees with its policy_users row.
+CREATE TEMP TABLE user_map AS
+  SELECT DISTINCT substring(f.name FROM 'Policy for user: ([0-9a-fA-F-]{36})') AS old_id,
+         pu.user_id::text AS new_id
+  FROM policy_key_staging f
+  JOIN policy_users pu ON pu.policy_id = f.id
+  WHERE f.status = 'matched' AND f.key LIKE 'user:%'
+    AND substring(f.name FROM 'Policy for user: ([0-9a-fA-F-]{36})') IS DISTINCT FROM pu.user_id::text;
 
 -- Capture children with NEW ids substituted, then delete/update/reinsert: no FK is
 -- ON UPDATE CASCADE or deferrable, and role_loadable is ON DELETE RESTRICT.
@@ -272,17 +650,26 @@ DELETE FROM policy_roles
      OR role_id   IN (SELECT old_id FROM role_map);
 DELETE FROM policy_users             WHERE policy_id IN (SELECT old_id FROM policy_map);
 
--- If a future migration adds a table with an FK to role(id)/policy(id) not handled
--- above, these UPDATEs fail on that FK and everything rolls back — never silent.
+-- If a future migration adds a table with an FK to role(id)/policy(id) not handled above, these
+-- UPDATEs fail on that FK and everything rolls back — never silent.
 UPDATE role   r SET id = m.new_id FROM role_map   m WHERE r.id = m.old_id;
 UPDATE policy p SET id = m.new_id FROM policy_map m WHERE p.id = m.old_id;
 
+-- Names/descriptions embedding an OLD role id (role policies + descriptions).
 UPDATE policy p
 SET name        = replace(p.name,        m.old_id::text, m.new_id::text),
-    description = replace(p.description, m.old_id::text, m.new_id::text)
+    description = replace(coalesce(p.description, ''), m.old_id::text, m.new_id::text)
 FROM role_map m
 WHERE p.name LIKE '%' || m.old_id::text || '%'
-   OR p.description LIKE '%' || m.old_id::text || '%';
+   OR coalesce(p.description,'') LIKE '%' || m.old_id::text || '%';
+-- Names/descriptions embedding an OLD folio user id (matched user policies only; no-op when the
+-- FOLIO name already holds policy_users.user_id, which is the carry-over case).
+UPDATE policy p
+SET name        = replace(p.name,        m.old_id, m.new_id),
+    description = replace(coalesce(p.description, ''), m.old_id, m.new_id)
+FROM user_map m
+WHERE p.name LIKE '%' || m.old_id || '%'
+   OR coalesce(p.description,'') LIKE '%' || m.old_id || '%';
 
 INSERT INTO role_loadable (id, loaded_from_file)
   SELECT id, loaded_from_file FROM b_role_loadable;
@@ -314,90 +701,28 @@ $assert$;
 
 \echo '--- role id remap (name, old_id, new_id) ---'
 SELECT name, old_id, new_id FROM role_map ORDER BY name;
-\echo '--- policy id remap count ---'
+\echo '--- per-class policy summary (class, status, count) ---'
+SELECT class, status, count(*) FROM policy_key_staging GROUP BY 1,2 ORDER BY 1,2;
+\echo '--- policies whose id was remapped ---'
 SELECT count(*) AS policies_remapped FROM policy_map;
 
 :tx_end;
 SQL
 
+# ---------- Step 8: Cleanup + final status ----------
+
 if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY_RUN: FOLIO transaction rolled back; Keycloak step skipped."
     cleanup_staging
-    log "Dry-run complete. Map preview at $MAP_CSV."
+    log "Dry-run complete: Keycloak untouched, FOLIO transaction rolled back. Maps preview in $WORK_DIR."
     exit 0
 fi
 
-# ---------- Step 6: Keycloak rewrite (policy names + policy_config) -----------
-
-log "[6] Keycloak name rewrite..."
-
-run_kc <<'SQL' || die "Failed to create Keycloak staging table."
-DROP TABLE IF EXISTS role_uuid_map_staging;
-CREATE TABLE role_uuid_map_staging (old_id uuid, new_id uuid, name text);
-SQL
-run_kc -c "\copy role_uuid_map_staging (old_id, new_id, name) FROM '$MAP_CSV' WITH (FORMAT csv, HEADER true);" \
-    || die "Failed to load the role id map into Keycloak."
-
-# FOLIO is already committed here, so abort with a clear message rather than letting the
-# UNIQUE (name, resource_server_id) constraint fire mid-rewrite.
-kc_collision=$(q_kc <<'SQL'
-WITH rewritten AS (
-  SELECT rsp.resource_server_id AS rs,
-         COALESCE((SELECT replace(rsp.name, m.old_id::text, m.new_id::text)
-                   FROM role_uuid_map_staging m
-                   WHERE strpos(rsp.name, m.old_id::text) > 0 LIMIT 1), rsp.name) AS nm
-  FROM resource_server_policy rsp
-  JOIN client c ON rsp.resource_server_id = c.id
-  WHERE c.realm_id = (SELECT id FROM realm WHERE name = :'tenant')
-)
-SELECT count(*) FROM (SELECT rs, nm FROM rewritten GROUP BY rs, nm HAVING count(*) > 1) d;
-SQL
-)
-[[ "$kc_collision" == "0" ]] || die "Keycloak rewrite would create $kc_collision duplicate policy name(s); FOLIO is already committed — resolve manually (see README 'Manual recovery', map: $MAP_CSV)."
-
-run_kc <<'SQL' || die "Keycloak rewrite failed; FOLIO is already committed — re-apply via README 'Manual recovery' using the saved map."
-\set ON_ERROR_STOP on
-BEGIN;
--- psql does not interpolate :'tenant' inside the dollar-quoted DO body below;
--- pass it via a transaction-local GUC instead.
-SELECT set_config('repair.tenant', :'tenant', true);
-
-UPDATE resource_server_policy rsp
-SET name = replace(rsp.name, m.old_id::text, m.new_id::text)
-FROM role_uuid_map_staging m
-WHERE rsp.resource_server_id IN (
-        SELECT c.id FROM client c WHERE c.realm_id = (SELECT id FROM realm WHERE name = :'tenant'))
-  AND strpos(rsp.name, m.old_id::text) > 0;
-
--- policy_config 'roles' values are JSON arrays that may embed SEVERAL stale role ids,
--- while UPDATE ... FROM applies at most one map row per target row. Loop until no row
--- matches; a no-op when the config is already consistent.
-DO $config_remap$
-DECLARE n bigint;
-BEGIN
-  LOOP
-    UPDATE policy_config pc
-    SET value = replace(pc.value, m.old_id::text, m.new_id::text)
-    FROM role_uuid_map_staging m
-    WHERE pc.name = 'roles'
-      AND strpos(pc.value, m.old_id::text) > 0
-      AND pc.policy_id IN (
-        SELECT rsp.id FROM resource_server_policy rsp
-        JOIN client c ON rsp.resource_server_id = c.id
-        WHERE c.realm_id = (SELECT id FROM realm WHERE name = current_setting('repair.tenant')));
-    GET DIAGNOSTICS n = ROW_COUNT;
-    EXIT WHEN n = 0;
-  END LOOP;
-END
-$config_remap$;
-COMMIT;
-SQL
-
-# ---------- Step 7: Cleanup ----------------------------------------------------
-
 cleanup_staging
-log "Repair complete for tenant $TENANT. Re-run the script to verify: it must report 'Nothing to do'."
-log "Map kept at $MAP_CSV — delete it once roles are confirmed editable."
-warn "Keycloak caches authorization data in memory: perform a rolling restart of all"
-warn "Keycloak nodes OR call POST /admin/realms/$TENANT/clear-realm-cache before"
-warn "actively managing the repaired roles."
+log "Intermediate CSVs left in $WORK_DIR for diagnosis — safe to delete."
+warn "Keycloak caches authorization data in memory: rolling-restart all Keycloak nodes OR call"
+warn "POST /admin/realms/$TENANT/clear-realm-cache before actively managing the repaired roles."
+if [[ "$KC_LEFTOVER" != "0" ]]; then
+    warn "INCOMPLETE: $KC_LEFTOVER Keycloak name(s)/description(s) still embed an id that resolves to no live role or user (a target absent from the maps — e.g. a user with permissions but no policy). A folio user id can be rebuilt from FOLIO on a re-run; a role id cannot, because its old→new mapping existed only while the two sides disagreed. Investigate before clearing caches."
+    exit 3
+fi
+log "Repair complete for tenant $TENANT. Re-run to verify: it must report 'Nothing to repair'."

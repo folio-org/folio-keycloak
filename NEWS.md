@@ -9,6 +9,7 @@
 * Reverting back to inline JS so use of global var is clearer. (KEYCLOAK-51).
 * Update to Keycloak 26.6.3 and folio-keycloak-plugin to 26.6.1 (KEYCLOAK-116)
 * Add consistent error message for case where user account is disabled and credentials are entered correctly (KEYCLOAK-101)
+* `repair-role-policy-uuids.sh` now matches policies by referenced entity instead of by name, repairing user policies (not just role policies) and their permissions, with honest per-class reporting of anything it cannot synchronise. Keycloak is rewritten before the FOLIO transaction commits, which makes an interrupted run safe to simply re-run — no recovery mode or saved state (KEYCLOAK-125)
 
 ## Version `v26.5.4` (14.05.2026)
 * Use Keycloak supported `jdbc-ping` cache discovery instead of custom JDBC_PING2 XML while preserving authorization cache size tuning via `KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT`; offline session cache limits can be tuned via `KC_CACHE_EMBEDDED_OFFLINE_SESSIONS_MAX_COUNT` and `KC_CACHE_EMBEDDED_OFFLINE_CLIENT_SESSIONS_MAX_COUNT` (KEYCLOAK-111)
