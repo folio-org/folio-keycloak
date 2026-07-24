@@ -1,4 +1,5 @@
 ARG ALPINE_VERSION=3.21.2
+ARG KEYCLOAK_VERSION=26.6.3
 FROM alpine:$ALPINE_VERSION AS providers_jar_downloader
 
 # Set the working directory
@@ -24,7 +25,36 @@ RUN wget ${FOLIO_MAVEN_URL}/org/folio/authentication/keycloak-detect-folio-user/
  && wget ${BC_MAVEN_URL}/bcpkix-fips/${BCPKIX_FIPS_VERSION}/bcpkix-fips-${BCPKIX_FIPS_VERSION}.jar \
  && wget ${BC_MAVEN_URL}/bcutil-fips/${BCUTIL_FIPS_VERSION}/bcutil-fips-${BCUTIL_FIPS_VERSION}.jar
 
-FROM quay.io/keycloak/keycloak:26.6.3 AS builder
+ARG KEYCLOAK_VERSION
+ARG KC_MAVEN_URL=https://repo1.maven.org/maven2/org/keycloak
+RUN mkdir -p /tmp/kc-patch-src \
+ && wget -O /tmp/kc-patch-src/keycloak-crypto-fips1402-${KEYCLOAK_VERSION}-sources.jar ${KC_MAVEN_URL}/keycloak-crypto-fips1402/${KEYCLOAK_VERSION}/keycloak-crypto-fips1402-${KEYCLOAK_VERSION}-sources.jar
+
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS keycloak_dist
+
+# Rebuild FIPS1402Provider so BCFIPS starts in HYBRID mode: a background entropy daemon
+# feeds a SP 800-90A pool, so foreground crypto never blocks on live entropy gathering
+# (EUREKASUP-168: entropy stalls wedge the JGroups-mTLS Infinispan cluster). The config
+# string cannot be injected via java.security on the Quarkus distribution - provider jars
+# in /opt/keycloak/providers are invisible to the JCA system classloader - so the
+# constructor call is patched at the single site and the class rebuilt against the
+# distribution's own jars. The grep guard fails the build if that site changes upstream.
+FROM registry.access.redhat.com/ubi9/openjdk-21:latest AS fips_provider_patcher
+USER root
+ARG KEYCLOAK_VERSION
+WORKDIR /tmp/patch
+COPY --from=keycloak_dist /opt/keycloak/lib/lib/ lib/
+COPY --from=providers_jar_downloader /tmp/keycloak-providers-jars/ providers/
+COPY --from=providers_jar_downloader /tmp/kc-patch-src/ ./
+RUN jar xf keycloak-crypto-fips1402-${KEYCLOAK_VERSION}-sources.jar org/keycloak/crypto/fips/FIPS1402Provider.java \
+ && [ "$(grep -c 'new BouncyCastleFipsProvider()' org/keycloak/crypto/fips/FIPS1402Provider.java)" = "1" ] \
+ && sed -i 's|new BouncyCastleFipsProvider()|new BouncyCastleFipsProvider("C:HYBRID;ENABLE{ALL};")|' org/keycloak/crypto/fips/FIPS1402Provider.java \
+ && javac --release 17 -nowarn -cp "providers/*:lib/boot/*:lib/main/*" -d classes org/keycloak/crypto/fips/FIPS1402Provider.java \
+ && cp lib/main/org.keycloak.keycloak-crypto-fips1402-${KEYCLOAK_VERSION}.jar patched-crypto-fips1402.jar \
+ && jar uf patched-crypto-fips1402.jar -C classes org/keycloak/crypto/fips
+
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION} AS builder
+ARG KEYCLOAK_VERSION
 
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
@@ -36,9 +66,11 @@ COPY --chown=keycloak:keycloak --from=providers_jar_downloader /tmp/keycloak-pro
 COPY --chown=keycloak:keycloak libs/folio-scripts.jar /opt/keycloak/providers/
 COPY --chown=keycloak:keycloak conf/* /opt/keycloak/conf/
 
+COPY --from=fips_provider_patcher --chown=keycloak:keycloak /tmp/patch/patched-crypto-fips1402.jar /opt/keycloak/lib/lib/main/org.keycloak.keycloak-crypto-fips1402-${KEYCLOAK_VERSION}.jar
+
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM quay.io/keycloak/keycloak:26.6.3
+FROM quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
 
 COPY --from=builder --chown=keycloak:keycloak /opt/keycloak/ /opt/keycloak/
 
