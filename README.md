@@ -548,7 +548,7 @@ export TENANT="diku"
 
 ## Repair Corrupted Role and Policy UUIDs [repair-role-policy-uuids.sh](keycloak-scripts/repair-role-policy-uuids.sh)
 
-`repair-policy-uuids.sh` (above) only fixes policy UUIDs. A same-cluster realm migration also hands roles brand-new Keycloak UUIDs, and `mod-roles-keycloak` stores that UUID as `role.id`. Every stored reference then points at the old id, so editing or deleting a role returns `404` from Keycloak. This script re-aligns roles **and** policies — both role policies and user policies — in one transaction.
+`repair-policy-uuids.sh` (above) only fixes policy UUIDs. A same-cluster realm migration also hands roles brand-new Keycloak UUIDs, and `mod-roles-keycloak` stores that UUID as `role.id`. Every stored reference then points at the old id, so editing or deleting a role returns `404` from Keycloak. This script re-aligns roles **and** policies — both role policies and user policies. It writes twice, once per database: the Keycloak rewrite commits first, the FOLIO transaction second (see below).
 
 **How it works.** Policies are matched between FOLIO and Keycloak by the **entity they reference**, never by policy name — a policy's name embeds the id of that entity, i.e. the very id that desyncs, so a name join is unreliable. The key is routed by name shape and resolved from the live reference (role *name* and folio *user id* are both stable across the migration, so the key matches even though the ids in the names do not):
 
@@ -567,9 +567,29 @@ The script:
 
 **Keycloak is written before FOLIO, and that order matters.** The two databases share no transaction, so a run can die between the writes. Both id maps are derived from FOLIO's ids still differing from Keycloak's, and the Keycloak step only rewrites name strings — it never changes a Keycloak id. So a run interrupted between the two steps leaves everything the maps are built from intact, and simply running the script again finishes the job. Commit FOLIO first instead and that difference is gone, which is why the reverse order needs a saved map and a resume mode.
 
-Anything it cannot synchronise is reported, never silently skipped: unmatched policies, multi-entity or unresolvable policies (logged under "could not synchronise"), a broken FOLIO↔Keycloak user link (hard abort — the "users were recreated" migration is out of scope, this script has no folio-user-id map source), and any Keycloak name still embedding an id that resolves to no live entity (final `WARN`, exit 3).
+**Best effort, by design.** An anomaly in the *data* does not abort the run: everything that maps 1:1 is repaired, everything that does not is skipped and reported, and the script never deletes a role, policy or permission (it does delete and reinsert child rows inside its own transaction, because the foreign keys are not `ON UPDATE CASCADE` — that is a rewrite, not a removal).
 
-With `DRY_RUN=true` it skips Keycloak entirely, runs the FOLIO transaction and rolls it back, and prints what it would change — nothing is written to either database. Re-run the script after a real run: a clean repair reports `Nothing to repair`.
+It aborts (exit 1) when it cannot work at all — missing variable, realm or schema, or a query it depends on failing — or when a write fails. Each write is a single transaction, but there are two of them in two databases: an abort at or before the Keycloak rewrite leaves both untouched, while an abort in the FOLIO transaction rolls FOLIO back with the Keycloak rewrite already committed. Re-running finishes the job, but do not read exit 1 as "nothing changed".
+
+The report groups the skips by what they ask of you:
+
+| class | meaning | what to do |
+|---|---|---|
+| `ambiguous` | several policies resolve to the same entity, so no id can be assigned deterministically | delete the surplus policy in Keycloak, re-run — the pair then repairs itself |
+| FOLIO-only policy | FOLIO holds a policy Keycloak does not; `mod-roles-keycloak` addresses Keycloak by the FOLIO policy id, so its next update hits a missing object | investigate — usually the realm snapshot predates the FOLIO schema |
+| Keycloak-only policy | no FOLIO counterpart; still enforced, but unmanaged | clean up deliberately, outside this script |
+| `multi` / `unresolved` | the policy references several entities, or none this script can resolve (e.g. a client role) | not repairable by id matching |
+| duplicate Keycloak role names | role name is the only stable key, so the role and its children are left alone | resolve the duplicate name, re-run |
+| roles in FOLIO but not Keycloak | no id to adopt | expected after a partial migration |
+| unknown FOLIO policy type | a type outside `ROLE`/`USER`/`TIME`, which the script cannot key at all | a newer `mod-roles-keycloak` added a type — the script needs teaching |
+| stale user link | `user_role.user_id` values Keycloak does not know as a `user_id` attribute | folio user ids were regenerated; repair user provisioning |
+| collision-excluded map row | rewriting it would land two Keycloak policies on one name, so that id was dropped from the map | resolve the duplicate name in Keycloak; for a **role** id this must be done before the FOLIO commit, because afterwards the old→new mapping no longer exists anywhere |
+
+`ambiguous` is the normal steady state on an environment running `mod-users-keycloak` 3.0.x, where a module system user gets its capabilities by direct user-capability assignment: each change of that user's folio id orphans its `Policy for user: <old id>` and the next assignment creates another one. On 4.x, where system users go through a default role, the class disappears. The report prints the per-key count on both sides — remove the surplus on the side that actually has more than one, since a key duplicated in FOLIO is not fixed by deleting anything in Keycloak.
+
+A stale id that belongs to a policy reported above is expected and is not counted as leftover. Only a stale Keycloak name attributable to no reported skip raises the final `WARN` and exit 3 — which means "written, but not certified clean", not "failed". That check runs after the Keycloak rewrite, so a dry run never reaches it; the equivalent pre-run figure is logged as `unexplained stale KC names`.
+
+With `DRY_RUN=true` (exactly that string — `1` or `yes` performs a **real run**) it skips the Keycloak rewrite, runs the FOLIO transaction and rolls it back, and prints what it would change. No tenant data is written to either database; the run still creates and drops its own staging tables in the FOLIO schema, and reads Keycloak. Re-run the script after a real run: a clean repair reports `Nothing to repair`.
 
 ### Running it
 
@@ -592,14 +612,13 @@ DRY_RUN=true ./keycloak-scripts/repair-role-policy-uuids.sh   # report only, not
 | `FOLIO_DB_URL` | *(required)*                            | FOLIO DB connection URL                                      |
 | `TENANT`       | *(required)*                            | Tenant / realm name                                          |
 | `DRY_RUN`      | `false`                                 | Skip the Keycloak rewrite, run the FOLIO transaction and roll it back, print a report |
-| `FORCE`        | `false`                                 | Skip roles that exist in FOLIO but not Keycloak (else abort) |
-| `WORK_DIR`     | `/tmp/repair-role-policy-uuids-$TENANT` | Scratch space for the CSVs the run passes between the two database connections (`role_id_map.csv`, `user_id_map.csv`, plus the Keycloak exports) |
+| `WORK_DIR`     | `/tmp/repair-role-policy-uuids-$TENANT` | Scratch space for the CSVs the run passes between the two database connections (`role_id_map.csv`, `user_id_map.csv`, `explained_ids.csv`, plus the Keycloak exports) |
 
 ### Good to know
 
 - The FOLIO transaction takes `EXCLUSIVE` locks on the nine affected tables — readers are fine, concurrent writers wait — and a dry run takes them too. Between the Keycloak rewrite and the FOLIO commit, role management is briefly inconsistent.
-- The script aborts before writing anything if a table's columns don't match what it expects, so a schema change in a newer `mod-roles-keycloak` can't corrupt data silently.
-- A dry run still creates and drops its staging tables in the DB (each `psql` call is a separate session); it never touches the tenant's own tables.
+- Child rows are copied with `SELECT *` and reinserted without a column list, so a column added or renamed by a newer `mod-roles-keycloak` flows through untouched. Only the handful of columns the script actually joins and rewrites on is checked, and only their absence aborts the run.
+- A dry run still creates and drops its staging tables in the FOLIO schema (each `psql` call is a separate session, so they cannot be `TEMP`); it never touches the tenant's own tables and never writes to Keycloak at all.
 - The CSVs left in `WORK_DIR` are the run's intermediate state, kept for diagnosis. They are not a recovery mechanism and nothing reads them on a later invocation — delete them whenever you like.
 - Keycloak caches authorization data in memory, so after a real run either roll-restart the Keycloak nodes or call `POST /admin/realms/{tenant}/clear-realm-cache` (clears the authz cache cluster-wide). `mod-roles-keycloak` doesn't cache role ids, but its config caches have a 3600s TTL — restart it or wait out the TTL before managing the repaired roles.
 
