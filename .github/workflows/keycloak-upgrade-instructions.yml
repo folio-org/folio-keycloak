@@ -1,7 +1,8 @@
 name: Keycloak Upgrade Instructions
 
 on:
-  pull_request:
+  # This workflow only reads PR metadata; it never checks out or executes PR code.
+  pull_request_target:
     types: [opened, reopened, synchronize]
     paths:
       - 'Dockerfile'
@@ -9,8 +10,7 @@ on:
 
 jobs:
   add-runbook-comment:
-    # Only run for Dependabot PRs that modify Keycloak version
-    if: github.actor == 'dependabot[bot]'
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -18,103 +18,116 @@ jobs:
     steps:
       - name: Check if PR updates Keycloak
         id: check-keycloak
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
-            const { data: files } = await github.rest.pulls.listFiles({
+            const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
+              per_page: 100,
             });
 
-            const keycloakUpdate = files.some(file => {
-              if (!['Dockerfile', 'Dockerfile-fips'].includes(file.filename)) return false;
-              if (!file.patch) return false;
+            const keycloakUpdate = files.some((file) => {
+              if (!['Dockerfile', 'Dockerfile-fips'].includes(file.filename) || !file.patch) {
+                return false;
+              }
 
               return file.patch
                 .split('\n')
-                .some(line =>
+                .some((line) =>
                   /^[+-]/.test(line) &&
                   (line.includes('KEYCLOAK_VERSION') ||
                     /quay\.io\/keycloak\/keycloak:\S+/.test(line))
                 );
             });
 
-            core.setOutput('is_keycloak_update', keycloakUpdate);
+            core.setOutput('is_keycloak_update', String(keycloakUpdate));
 
-      - name: Post runbook comment
+      - name: Create runbook comment if missing
         if: steps.check-keycloak.outputs.is_keycloak_update == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
-            const { data: comments } = await github.rest.issues.listComments({
+            const marker = '<!-- keycloak-upgrade-runbook -->';
+            const body = [
+              marker,
+              '## Keycloak Upgrade Runbook',
+              '',
+              ':warning: **This PR updates the Keycloak base image and requires verification before merge.**',
+              '',
+              '### Pre-merge checklist',
+              '',
+              '- [ ] Review the [Keycloak upgrading guide](https://www.keycloak.org/docs/latest/upgrading/) and release notes.',
+              '',
+              '#### 1. Update and release folio-keycloak-plugins',
+              '',
+              '- [ ] `folio-keycloak-plugins` is released for the target Keycloak version, its JARs ' +
+                'are in the FOLIO Maven registry, and both Dockerfiles use that ' +
+                '`FOLIO_KEYCLOAK_PLUGIN_VERSION`.',
+              '',
+              '#### 2. Build and verify the candidate',
+              '',
+              '- [ ] Run `Verify Keycloak Upgrade Candidate` on this PR branch and confirm the ' +
+                'comment reports success. If it fails, fix the issue and run it again — the same ' +
+                'commit reuses the already-built image.',
+              '- [ ] Check whether a newer `keycloak-admin-client` release exists for this Keycloak ' +
+                'major version and update `applications-poc-tools` if so. ' +
+                '([Maven Central](https://mvnrepository.com/artifact/org.keycloak/keycloak-admin-client))',
+              '',
+              '#### 3. Test the environment manually',
+              '',
+              '- [ ] Deploy the candidate image from the verification comment (never `latest`) to ' +
+                'the test environment and confirm it works.',
+              '',
+              '#### 4. Prepare release documentation',
+              '',
+              '- [ ] Confirm whether `README.md` compatibility information needs an update, and ' +
+                'update it if so.',
+              '- [ ] Update `NEWS.md` with the Keycloak and plugin versions and relevant changes.',
+              '',
+              '#### 5. Final approval',
+              '',
+              '- [ ] Add `keycloak-verified` only after every preceding step is complete.',
+              '',
+              'See [`docs/keycloak-upgrade.md`](https://github.com/folio-org/folio-keycloak/blob/master/docs/keycloak-upgrade.md) for the full process.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
+              per_page: 100,
             });
-
-            const existingComment = comments.find(comment =>
-              comment.body && comment.body.includes('## Keycloak Upgrade Runbook')
+            const existing = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.includes(marker)
             );
 
-            if (existingComment) {
-              console.log(`Runbook comment already exists (ID: ${existingComment.id}). Skipping.`);
+            if (existing) {
+              core.info(`Runbook comment ${existing.id} already exists; keeping checklist progress.`);
               return;
             }
 
-            const comment = `## Keycloak Upgrade Runbook
+            const legacy = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.includes('## Keycloak Upgrade Runbook')
+            );
+            if (legacy) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: legacy.id,
+                body,
+              });
+              core.info(`Migrated legacy runbook comment ${legacy.id}.`);
+              return;
+            }
 
-            :warning: **This PR updates the Keycloak base image version and requires manual verification before merge.**
-
-            ### Pre-Merge Checklist
-
-            Complete these steps in order:
-
-            - [ ] Review the [Keycloak Upgrade Guide](https://www.keycloak.org/docs/latest/upgrading/) for this release and note potential breaking changes
-
-            #### 1. Update and Release folio-keycloak-plugins
-
-            - [ ] Verify [folio-keycloak-plugins](https://github.com/folio-org/folio-keycloak-plugins) has been updated for this Keycloak version
-            - [ ] If not already done, create and merge PR in [folio-keycloak-plugins](https://github.com/folio-org/folio-keycloak-plugins)
-            - [ ] Ensure new plugin version is released to FOLIO Maven repository
-            - [ ] Update this PR (\`Dockerfile\` and \`Dockerfile-fips\` plugin version) to use the released plugin build so the Keycloak version inside the plugin matches the base image tag
-
-            #### 2. Verify Dependent Modules in applications-poc-tools
-
-            - [ ] In [applications-poc-tools](https://github.com/folio-org/applications-poc-tools):
-              - Create a PR that bumps the Keycloak testcontainers to this version and the admin client library to the latest available for this major (e.g., 26.x -> 26.0.7 currently; artifact: [keycloak-admin-client](https://mvnrepository.com/artifact/org.keycloak/keycloak-admin-client))
-              - Wait for the \`verify-dependent-modules\` workflow to pass for **all** dependent modules; **investigate and fix** any failures before proceeding
-              - Merge the \`applications-poc-tools\` PR once verification passes
-
-            #### 3. Environment Testing
-
-            - [ ] Recreate the Rancher dev environment using this branch (doc: [How to deploy and test folio-kong and folio-keycloak from branch](https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch))
-
-            #### 4. Update Compatibility Documentation
-
-            - [ ] Update README.md compatibility table:
-              - Add new row with "Compatible With" set to the tested FOLIO release if minor or major Keycloak version changed
-              - Add any discovered incompatibilities to "Not Compatible With" column
-            - [ ] Update NEWS.md with version entry and key changes
-
-            #### 5. Final Approval
-
-            - [ ] All above steps completed successfully
-            - [ ] Add label \`keycloak-verified\` to this PR
-              - The \`keycloak-upgrade-gate\` status check will pass automatically
-              - Merge this PR
-
-            ---
-
-            **Note:** The \`keycloak-upgrade-gate\` workflow will block merging until the \`keycloak-verified\` label is applied.
-
-            For detailed information, see \`docs/keycloak-upgrade.md\`.`;
-
-            await github.rest.issues.createComment({
+            const { data: comment } = await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: comment
+              body,
             });
-
-            console.log('Runbook comment posted successfully.');
+            core.info(`Created runbook comment ${comment.id}.`);

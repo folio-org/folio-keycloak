@@ -1,0 +1,440 @@
+name: Verify Keycloak Upgrade Candidate
+
+run-name: Verify Keycloak upgrade candidate on ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  # Keep only one folio-keycloak verification active because the target workflow
+  # also allows only one workflow_dispatch run on its default branch.
+  group: verify-keycloak-upgrade
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+env:
+  IMAGE_REPOSITORY: folioci/folio-keycloak
+  TARGET_REPOSITORY: folio-org/applications-poc-tools
+  TARGET_WORKFLOW: verify-dependent-modules.yml
+  TARGET_BRANCH: master
+  VERIFICATION_STATUS: keycloak-upgrade-verification
+
+jobs:
+  build-and-verify:
+    name: Build candidate and verify dependent modules
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Find the pull request for this branch
+        id: pull-request
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const branch = context.ref.replace('refs/heads/', '');
+            const { data: pulls } = await github.rest.pulls.list({
+              owner,
+              repo,
+              head: `${owner}:${branch}`,
+              state: 'open',
+            });
+
+            if (pulls.length === 0) {
+              core.setFailed(
+                `No open pull request found for branch ${branch}. Run this workflow ` +
+                'from the branch of the upgrade pull request.'
+              );
+              return;
+            }
+
+            core.info(`Verifying pull request #${pulls[0].number} at ${context.sha}`);
+            core.setOutput('number', String(pulls[0].number));
+            core.setOutput('sha', context.sha);
+
+      - name: Checkout upgrade branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate image inputs
+        run: |
+          readarray -t standard_keycloak_versions < <(
+            sed -nE 's|^FROM quay\.io/keycloak/keycloak:([^ ]+).*|\1|p' Dockerfile | sort -u
+          )
+          readarray -t fips_keycloak_versions < <(
+            sed -nE 's|^FROM quay\.io/keycloak/keycloak:([^ ]+).*|\1|p' Dockerfile-fips | sort -u
+          )
+
+          if (( ${#standard_keycloak_versions[@]} != 1 )); then
+            echo 'Dockerfile must use exactly one Keycloak version.' >&2
+            exit 1
+          fi
+          if (( ${#fips_keycloak_versions[@]} != 1 )); then
+            echo 'Dockerfile-fips must use exactly one Keycloak version.' >&2
+            exit 1
+          fi
+          if [[ "${standard_keycloak_versions[0]}" != "${fips_keycloak_versions[0]}" ]]; then
+            echo 'Dockerfile and Dockerfile-fips use different Keycloak versions.' >&2
+            exit 1
+          fi
+
+          standard_plugin_version=$(sed -nE \
+            's/^ARG FOLIO_KEYCLOAK_PLUGIN_VERSION=([^ ]+)$/\1/p' Dockerfile)
+          fips_plugin_version=$(sed -nE \
+            's/^ARG FOLIO_KEYCLOAK_PLUGIN_VERSION=([^ ]+)$/\1/p' Dockerfile-fips)
+
+          if [[ -z "$standard_plugin_version" || -z "$fips_plugin_version" ]]; then
+            echo 'Both Dockerfiles must define FOLIO_KEYCLOAK_PLUGIN_VERSION.' >&2
+            exit 1
+          fi
+          if [[ "$standard_plugin_version" != "$fips_plugin_version" ]]; then
+            echo 'Dockerfile and Dockerfile-fips use different plugin versions.' >&2
+            exit 1
+          fi
+
+          {
+            echo "Keycloak version: ${standard_keycloak_versions[0]}"
+            echo "Plugin version: $standard_plugin_version"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Calculate candidate image name
+        id: image
+        env:
+          PULL_REQUEST_NUMBER: ${{ steps.pull-request.outputs.number }}
+          SOURCE_SHA: ${{ steps.pull-request.outputs.sha }}
+        run: |
+          latest_tag=$(git describe --tags --match 'v[0-9]*' --abbrev=0 "$(git rev-list --tags --max-count=1)")
+          released_version=${latest_tag#v}
+          IFS=. read -r major minor _patch <<< "$released_version"
+
+          if [[ ! "$major" =~ ^[0-9]+$ || ! "$minor" =~ ^[0-9]+$ ]]; then
+            echo "Unable to calculate a candidate version from release tag $latest_tag" >&2
+            exit 1
+          fi
+
+          # pr<number>.<short sha> keeps the tag readable next to the CI snapshots and
+          # makes it deterministic, so the tag itself records whether this pull request
+          # commit was already built.
+          candidate_version="${major}.$((minor + 1)).0-SNAPSHOT.pr${PULL_REQUEST_NUMBER}.${SOURCE_SHA:0:7}"
+          image="${IMAGE_REPOSITORY}:${candidate_version}"
+
+          tag_url="https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${candidate_version}"
+          response_file=$(mktemp)
+          if ! status_code=$(curl --silent --show-error --location \
+            --retry 3 --retry-all-errors \
+            --output "$response_file" --write-out '%{http_code}' "$tag_url"); then
+            echo 'Unable to check the candidate tag on Docker Hub.' >&2
+            exit 1
+          fi
+
+          digest=''
+          case "$status_code" in
+            404)
+              reused=false
+              echo "Building a new candidate image: $image"
+              ;;
+            200)
+              digest=$(jq --raw-output '.digest // empty' "$response_file")
+              if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                echo 'Docker Hub reported no digest for the existing candidate tag.' >&2
+                exit 1
+              fi
+              reused=true
+              echo "Reusing the candidate image already built for this commit: $image"
+              ;;
+            *)
+              echo "Docker Hub returned HTTP $status_code while checking the candidate tag." >&2
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "version=$candidate_version"
+            echo "tag=$candidate_version"
+            echo "reference=$image"
+            echo "reused=$reused"
+            echo "digest=$digest"
+          } >> "$GITHUB_OUTPUT"
+          echo "Candidate image: $image" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Docker Buildx
+        if: steps.image.outputs.reused != 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: steps.image.outputs.reused != 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build FIPS image
+        if: steps.image.outputs.reused != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile-fips
+          platforms: linux/amd64
+          push: false
+
+      - name: Build and push candidate image
+        id: build
+        if: steps.image.outputs.reused != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.reference }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.pull-request.outputs.sha }}
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
+
+      - name: Resolve immutable candidate reference
+        id: candidate
+        env:
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+          REUSED_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          digest=${BUILD_DIGEST:-$REUSED_DIGEST}
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo 'Candidate image digest is missing or invalid.' >&2
+            exit 1
+          fi
+
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "immutable=${IMAGE_REPOSITORY}@${digest}" >> "$GITHUB_OUTPUT"
+          echo "Immutable candidate: ${IMAGE_REPOSITORY}@${digest}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create bot token for dependent-module verification
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.BOT_CLIENT_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          owner: folio-org
+          repositories: applications-poc-tools
+
+      - name: Verify dependent modules
+        id: dependent-modules
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          CANDIDATE_IMAGE: ${{ steps.candidate.outputs.immutable }}
+        run: |
+          dispatch_id="folio-keycloak-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          gh workflow run "$TARGET_WORKFLOW" \
+            --repo "$TARGET_REPOSITORY" \
+            --ref "$TARGET_BRANCH" \
+            --field "keycloak-image=$CANDIDATE_IMAGE" \
+            --field "dispatch_id=$dispatch_id"
+
+          run_id=''
+          for _attempt in {1..60}; do
+            run_id=$(gh run list \
+              --repo "$TARGET_REPOSITORY" \
+              --workflow "$TARGET_WORKFLOW" \
+              --branch "$TARGET_BRANCH" \
+              --event workflow_dispatch \
+              --limit 100 \
+              --json databaseId,displayTitle \
+              --jq "map(select(.displayTitle | contains(\"$dispatch_id\")))[0].databaseId // empty")
+
+            if [[ -n "$run_id" ]]; then
+              break
+            fi
+            sleep 5
+          done
+
+          if [[ -z "$run_id" ]]; then
+            echo 'The dependent-module workflow was dispatched but its run was not found.' >&2
+            exit 1
+          fi
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "dispatch_id=$dispatch_id" >> "$GITHUB_OUTPUT"
+          echo "Dependent-module run: https://github.com/${TARGET_REPOSITORY}/actions/runs/${run_id}" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          conclusion=''
+          for attempt in {1..180}; do
+            run_state=$(gh run view "$run_id" \
+              --repo "$TARGET_REPOSITORY" \
+              --json status,conclusion,url)
+            run_status=$(jq --raw-output '.status' <<< "$run_state")
+
+            if [[ "$run_status" == 'completed' ]]; then
+              conclusion=$(jq --raw-output '.conclusion' <<< "$run_state")
+              break
+            fi
+            if (( attempt % 20 == 0 )); then
+              echo "Dependent-module run is still $run_status."
+            fi
+            sleep 15
+          done
+
+          if [[ -z "$conclusion" ]]; then
+            echo 'Timed out waiting 45 minutes for dependent-module verification.' >&2
+            exit 1
+          fi
+          if [[ "$conclusion" != 'success' ]]; then
+            echo "Dependent-module verification finished with conclusion: $conclusion" >&2
+            exit 1
+          fi
+
+      - name: Report verification result to upgrade pull request
+        if: always()
+        uses: actions/github-script@v8
+        env:
+          CANDIDATE_IMAGE: ${{ steps.image.outputs.reference }}
+          CANDIDATE_DIGEST: ${{ steps.candidate.outputs.digest }}
+          DEPENDENT_RUN_ID: ${{ steps.dependent-modules.outputs.run_id }}
+          DEPENDENT_OUTCOME: ${{ steps.dependent-modules.outcome }}
+          PULL_REQUEST_NUMBER: ${{ steps.pull-request.outputs.number }}
+          SOURCE_SHA: ${{ steps.pull-request.outputs.sha }}
+        with:
+          script: |
+            const marker = '<!-- keycloak-upgrade-verification -->';
+            const attemptMarker = '<!-- keycloak-upgrade-verification-attempt -->';
+            const pullNumber = Number.parseInt(process.env.PULL_REQUEST_NUMBER, 10);
+            if (!Number.isInteger(pullNumber)) {
+              core.info('The pull request was not validated, so no PR comment can be posted.');
+              return;
+            }
+
+            const image = process.env.CANDIDATE_IMAGE || 'not published';
+            const digest = process.env.CANDIDATE_DIGEST || 'not available';
+            const runId = process.env.DEPENDENT_RUN_ID;
+            const dependentRunUrl = runId
+              ? `https://github.com/${process.env.TARGET_REPOSITORY}/actions/runs/${runId}`
+              : null;
+
+            const outcome = process.env.DEPENDENT_OUTCOME === 'success'
+              ? '✅ success'
+              : `❌ ${process.env.DEPENDENT_OUTCOME || 'not started'}`;
+            const workflowRunUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            const sourceSha = process.env.SOURCE_SHA;
+            const hasDigest = /^sha256:[0-9a-f]{64}$/.test(digest);
+            const immutableImage = hasDigest
+              ? `${process.env.IMAGE_REPOSITORY}@${digest}`
+              : 'not available';
+            const verificationSucceeded = hasDigest &&
+              process.env.DEPENDENT_OUTCOME === 'success';
+            const bodyLines = [
+              marker,
+              `<!-- source-sha:${sourceSha || 'unknown'} -->`,
+              '## Keycloak Upgrade Candidate Verification',
+              '',
+              `Source commit: \`${(sourceSha || 'unknown').slice(0, 12)}\``,
+              `Candidate tag: \`${image}\``,
+              `Immutable image: \`${immutableImage}\``,
+              `Dependent modules: ${outcome}`,
+              '',
+              `[Candidate workflow](${workflowRunUrl})` +
+                (dependentRunUrl ? ` · [Dependent-module workflow](${dependentRunUrl})` : ''),
+            ];
+
+            const body = bodyLines.join('\n');
+            await core.summary.addRaw(body.replace(`${marker}\n`, '')).write();
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullNumber,
+              per_page: 100,
+            });
+            const attemptBody = [
+              attemptMarker,
+              `<!-- source-sha:${sourceSha || 'unknown'} -->`,
+              '## Latest Keycloak Candidate Attempt',
+              '',
+              `Source commit: \`${(sourceSha || 'unknown').slice(0, 12)}\``,
+              `Candidate: \`${immutableImage}\``,
+              `Result: ${outcome}`,
+              '',
+              `[Candidate workflow](${workflowRunUrl})` +
+                (dependentRunUrl ? ` · [Dependent-module workflow](${dependentRunUrl})` : ''),
+            ].join('\n');
+            const previousAttempt = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.includes(attemptMarker)
+            );
+            if (previousAttempt) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previousAttempt.id,
+                body: attemptBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullNumber,
+                body: attemptBody,
+              });
+            }
+
+            if (!verificationSucceeded) {
+              if (sourceSha) {
+                await github.rest.repos.createCommitStatus({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  sha: sourceSha,
+                  state: 'failure',
+                  context: process.env.VERIFICATION_STATUS,
+                  description: 'Candidate verification did not complete successfully',
+                  target_url: workflowRunUrl,
+                });
+              }
+              return;
+            }
+
+            const existing = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullNumber,
+                body,
+              });
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sourceSha,
+              state: 'success',
+              context: process.env.VERIFICATION_STATUS,
+              description: 'Candidate image and dependent modules verified',
+              target_url: workflowRunUrl,
+            });
+
+      - name: Fail when dependent-module verification failed
+        if: always() && steps.dependent-modules.outcome != 'success'
+        run: |
+          echo 'Dependent-module verification did not complete successfully.' >&2
+          exit 1

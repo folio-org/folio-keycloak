@@ -1,6 +1,6 @@
 # Release Notes
 ## Version `v26.7.1` (in progress)
-
+* Add Verify Keycloak Upgrade Candidate workflow to build and verify Keycloak upgrade candidates automatically, and require a successful run for the current commit before keycloak-upgrade-gate allows merge
 ## Version `v26.7.0` (28.07.2026)
 * Update to Keycloak 26.7.0 and folio-keycloak-plugin to 26.7.0 (KEYCLOAK-124)
 
