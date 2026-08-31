@@ -1,0 +1,30 @@
+name: Reset Keycloak Upgrade Approval
+
+on:
+  # This workflow only updates PR metadata; it never checks out or executes PR code.
+  pull_request_target:
+    types: [synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  reset-keycloak-approval:
+    if: contains(github.event.pull_request.labels.*.name, 'keycloak-verified')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Remove approval from the previous commit
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              name: 'keycloak-verified',
+            });
+            core.notice(
+              'Removed keycloak-verified because the pull request received a new commit.'
+            );

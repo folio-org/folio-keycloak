@@ -2,166 +2,199 @@
 
 ## Overview
 
-Dependabot creates PRs when the Keycloak base image tag changes. These upgrades need coordination with plugins and downstream modules plus manual testing. This guide summarizes what the automation does and what you need to verify before merging.
+Dependabot creates a pull request when the Keycloak base image changes. The upgrade keeps the
+plugin release and environment validation as deliberate manual steps, while candidate-image creation
+and dependent-module verification run as one workflow from `folio-keycloak`.
 
-## Automated Components
+The expected order is:
 
-### 1. Dependabot Configuration
+1. Review the Keycloak release notes.
+2. Update, test, and release `folio-keycloak-plugins`.
+3. Update the upgrade PR to use the released plugin version.
+4. Run `Verify Keycloak Upgrade Candidate` on the upgrade branch.
+5. Deploy the reported candidate image manually and validate the environment.
+6. Prepare the compatibility and release documentation.
+7. Add `keycloak-verified` and merge.
 
-Dependabot is configured (`.github/dependabot.yml`) to:
-- Monitor the Keycloak base image (`quay.io/keycloak/keycloak`) weekly
-- Create PRs that update the Keycloak base image tag in `Dockerfile` and `Dockerfile-fips`
-- Automatically label PRs with `dependencies`, `docker`, and `keycloak-upgrade`
+Do not merge or release `folio-keycloak` before this process is complete.
 
-### 2. Automatic Runbook Comment
+## Automation
 
-When Dependabot creates a Keycloak upgrade PR, the `keycloak-upgrade-instructions` workflow posts a runbook comment with the verification steps (`.github/workflows/keycloak-upgrade-instructions.yml`).
+### Dependabot and upgrade instructions
 
-### 3. Merge Gate
+Dependabot monitors `quay.io/keycloak/keycloak` weekly, updates `Dockerfile` and
+`Dockerfile-fips`, and adds the `keycloak-upgrade` label. The
+`keycloak-upgrade-instructions` workflow creates the checklist comment on the pull request. Later
+PR updates do not replace it, so checked items stay checked.
 
-The `keycloak-upgrade-gate` workflow (`.github/workflows/keycloak-upgrade-gate.yml`) enforces that:
-- Keycloak upgrade PRs **cannot be merged** until they have the `keycloak-verified` label
-- The workflow runs on PR open/update/label changes
-- The job name is stable (`keycloak-upgrade-gate`) for use in branch protection
+### Candidate build and dependent-module verification
 
-## Manual Verification Process
+The `Verify Keycloak Upgrade Candidate` workflow is dispatched manually on the upgrade branch and:
 
-When a Keycloak upgrade PR is created, follow these steps:
+- finds the open pull request for that branch, and fails when there is none;
+- validates that `Dockerfile` and `Dockerfile-fips` agree on one Keycloak version and one released
+  plugin version;
+- builds `Dockerfile-fips` without publishing it, so a broken FIPS build fails before anything is
+  pushed;
+- pushes the standard image as `folioci/folio-keycloak:X.Y.Z-SNAPSHOT.pr<number>.<short sha>`,
+  never `latest`, and records its immutable digest;
+- uses the `folio-keycloak-upgrade-bot` GitHub App to start `verify-dependent-modules.yml` in
+  `applications-poc-tools` with that digest;
+- updates a latest-attempt comment with the overall result and workflow links;
+- after success, updates a separate successful-candidate comment with the immutable image reference.
 
-- Review the [Keycloak Upgrade Guide](https://www.keycloak.org/docs/latest/upgrading/) for this release and note potential breaking changes.
+The candidate tag is derived from the pull request number and the built commit. A rerun for the same
+commit finds the published image, skips the build, and repeats only the dependent-module
+verification, so the image an engineer tested manually stays identical to the image the verification
+passed on. A new commit always produces a new candidate.
 
-### Step 1: Update folio-keycloak-plugins
+### Merge gate
 
-The Keycloak plugins must be compatible with the new Keycloak version:
+The `keycloak-upgrade-gate` workflow prevents a Keycloak upgrade PR from merging until the current
+PR commit has a successful candidate verification and the PR has the `keycloak-verified` label.
+The label is the final human approval; automation must not add it. A new image-affecting commit
+invalidates the previous verification. Later changes limited to `README.md`, `NEWS.md`, or `docs/`
+keep the verified candidate valid and do not trigger an unnecessary rebuild.
+Any new commit removes an existing `keycloak-verified` label, so the final human approval always
+applies to the final PR state.
 
-1. Check if [`folio-keycloak-plugins`](https://github.com/folio-org/folio-keycloak-plugins) has already been updated for this version.
-2. If not, create and merge a PR in `folio-keycloak-plugins`.
-3. Ensure the new plugin version is released to the FOLIO Maven repository.
-4. Update this PR to use the released plugin build so the Keycloak version inside the plugin matches the base image tag.
-5. Update `Dockerfile` if needed to reference the new plugin version.
+## Upgrade Runbook
 
-### Step 2: Verify Dependent Modules
+### Step 1: Review the Keycloak release
 
-The Keycloak upgrade affects multiple FOLIO modules. Test them through `applications-poc-tools`:
+Read the [Keycloak upgrading guide](https://www.keycloak.org/docs/latest/upgrading/) and
+[release notes](https://www.keycloak.org/docs/latest/release_notes/) for the target version. Record
+relevant breaking changes, migration requirements, and manual checks on the upgrade PR.
 
-1. In [`applications-poc-tools`](https://github.com/folio-org/applications-poc-tools), create a PR that:
-   - Bumps the Keycloak testcontainers version to match this upgrade
-   - Updates the Keycloak admin client library to the version compatible with this Keycloak release (use the admin client artifact published for this server version)
+### Step 2: Update and release folio-keycloak-plugins
 
-   Practical guidance:
-   - Use the latest published admin client for this major line (for 26.x, use 26.0.7 as of now)
-   - Watch Keycloak release notes for admin client breaking changes
-   - Admin client artifacts on Maven Central: [keycloak-admin-client](https://repo1.maven.org/maven2/org/keycloak/keycloak-admin-client/)
+The candidate image deliberately uses a released plugin artifact. Complete this step before
+building the candidate:
 
-2. Wait for the `verify-dependent-modules` workflow to complete successfully
-   - This workflow tests all FOLIO modules that depend on Keycloak
-   - If the workflow fails, **investigate and fix** the failures before proceeding
-   - All tests must pass before proceeding
+1. In [`folio-keycloak-plugins`](https://github.com/folio-org/folio-keycloak-plugins), set
+   `keycloak.version` to the Maven artifact version corresponding to the target Keycloak server.
+   The container tag may contain a packaging suffix, while the Maven version may not; verify the
+   published Keycloak artifacts instead of copying the container tag blindly.
+2. Run the plugin build and tests:
 
-3. Merge the `applications-poc-tools` PR once verification passes
+   ```bash
+   mvn clean verify
+   ```
 
-### Step 3: Environment Testing
+3. Fix any compilation or test failures before release.
+4. Merge and release the plugin through its normal release process.
+5. Confirm that both plugin JARs are available from the FOLIO Maven release repository.
+6. In the Keycloak upgrade PR, update `FOLIO_KEYCLOAK_PLUGIN_VERSION` in both `Dockerfile` and
+   `Dockerfile-fips` to that released version.
 
-Deploy and test the new Keycloak version in a test environment:
+If later candidate verification finds a plugin defect, fix it, release a new plugin version, and
+update the Keycloak PR. The new commit produces a new candidate image; the previous candidate stays
+untouched in the registry.
 
-1. Build the Docker image from the upgrade PR branch and recreate the Keycloak environment following the FOLIO how-to: [How to deploy and test folio-kong and folio-keycloak from branch](https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch)
-2. Deploy to a test environment (or recreate locally).
-3. Run smoke tests covering:
-   - Login flows: Username/password authentication and SSO
-   - Token operations: Token exchange, impersonation, and refresh
-   - Multi-tenancy: Create/update/delete realms and clients
-   - Lightweight tokens: Verify token generation and size
-   - Module authentication: Module-to-module service account flows
-   - Admin operations: Realm configuration via admin API
-4. Check logs for errors or deprecation warnings.
-5. Verify performance and resource usage.
+### Step 3: Build and verify the candidate
 
-### Step 4: Update Documentation
+After the released plugin version is committed to the upgrade PR:
 
-Before merging, update compatibility documentation:
+1. Open **Actions** in `folio-org/folio-keycloak`.
+2. Select **Verify Keycloak Upgrade Candidate**.
+3. Choose **Run workflow**, select the upgrade PR branch in **Use workflow from**, and run it.
+4. Wait for the workflow to build the image and complete the dependent-module workflow.
+5. Read the **Keycloak Upgrade Candidate Verification** comment on the upgrade PR.
+6. Check whether a newer `keycloak-admin-client` release exists for this Keycloak major version on
+   [Maven Central](https://mvnrepository.com/artifact/org.keycloak/keycloak-admin-client), and
+   update `applications-poc-tools` to it if so.
 
-1. **Update NEWS.md**:
-   - Add new version entry at the top
-   - List key changes with JIRA issue links
+The workflow builds the branch it was dispatched on and finds the open pull request for that branch
+itself. A branch created before this workflow reached the default branch does not carry the workflow
+file yet; comment `@dependabot rebase` on the PR to refresh it.
 
-2. **Update README.md compatibility matrix**:
-   - Add new row with "Compatible With" set to the tested FOLIO release if minor or major Keycloak version changed
-   - Add any discovered incompatibilities to "Not Compatible With" column
+All dependent-module jobs must pass. The successful-candidate comment is the source of truth for the
+immutable image reference to use in later manual testing. Do not substitute `latest` or rebuild the
+image through `do-docker.yml`.
 
-**Example compatibility table update**:
-```markdown
-| folio-keycloak | Compatible With | Not Compatible With |
-|----------------|-----------------|---------------------|
-| v26.5.x        | Sunflower CSP5+ |                     |
-```
+Rerun the workflow after any image-affecting PR commit. The candidate tag is derived from the PR
+number and the commit, so a new commit always produces a new candidate image, while a rerun for the
+same commit reuses the published one and only repeats the dependent-module verification. That keeps
+the image an engineer tested manually identical to the image the verification passed on. If a
+genuinely fresh build of the same commit is needed, delete the candidate tag from Docker Hub and
+rerun. Documentation-only changes in `README.md`, `NEWS.md`, or `docs/` do not require another run.
+A failed run does not replace the last successful candidate comment, so the PR never presents a
+failed image as the verified candidate; its latest-attempt comment records the failure.
 
-**Example notes**:
-```markdown
-**v26.5.x**
-- Some very important note here.
-```
+### Step 4: Test the candidate environment manually
 
-### Step 5: Approve and Merge
+Use the exact immutable candidate reference (`repository@sha256:...`) from the PR comment to recreate the
+test environment. Follow
+[How to deploy and test folio-kong and folio-keycloak from branch](https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch),
+substituting the candidate image where the process accepts an image reference.
 
-Once all verification steps are complete:
+Validate the behavior required for the release, including applicable login, SSO, token, tenant,
+realm, client, and module-authentication flows. Check Keycloak logs for errors and relevant
+deprecation warnings. Record the environment and evidence on the upgrade PR.
 
-1. Add the label `keycloak-verified` to the PR
-   - The `keycloak-upgrade-gate` workflow will automatically pass
-2. Review the PR one final time
-3. Merge the PR
+Environment deployment and these checks are intentionally not performed by the candidate workflow.
 
-## Branch Protection Setup (Maintainers)
+### Step 5: Update documentation
 
-To enforce the merge gate, repository maintainers must configure branch protection:
+After manual validation, with the tested Keycloak and plugin versions confirmed:
 
-1. Go to repository **Settings** -> **Branches**
-2. Edit the branch protection rule for `master` (or `main`)
-3. Under **Require status checks to pass before merging**:
-   - Enable **Require status checks to pass**
-   - Add `keycloak-upgrade-gate` to the list of required status checks
-4. Save the changes
+1. Update `NEWS.md` with the Keycloak and plugin versions and any relevant behavior changes.
+2. Update the compatibility table in `README.md` when the supported FOLIO release range changes.
+3. Record any discovered incompatibilities rather than leaving the compatibility cell ambiguous.
 
-This ensures that Keycloak Dependabot PRs **cannot be merged** without:
-- Completing the verification runbook
-- Adding the `keycloak-verified` label
+These commits change no image content, so they do not require another candidate run. Commit them
+before adding `keycloak-verified`: every new commit removes that label.
+
+### Step 6: Approve and merge
+
+When the released plugin, candidate verification, dependent modules, manual environment validation,
+and documentation are complete:
+
+1. Add the `keycloak-verified` label.
+2. Confirm that `keycloak-upgrade-gate` passes.
+3. Review the final diff and merge the upgrade PR.
+
+The normal tag-based Docker release remains separate from candidate verification.
 
 ## Troubleshooting
 
-### Dependabot PR doesn't trigger the workflows
+### Candidate workflow is not visible
 
-- Check that the PR modifies `Dockerfile` or `Dockerfile-fips`
-- Verify that the change updates the Keycloak base image tag (`quay.io/keycloak/keycloak`)
-- Ensure the PR author is `dependabot[bot]`
+`workflow_dispatch` workflows must exist on the default branch, and the branch selected in **Use
+workflow from** must carry the workflow file as well. Merge the workflow change first. If the
+upgrade branch was created before that merge, comment `@dependabot rebase` on the pull request so
+the branch picks the workflow up.
 
-### Gate workflow fails even with label
+### Candidate build cannot download plugins
 
-- Verify the label name is exactly `keycloak-verified` (no typos)
-- Check workflow logs for errors
-- Re-trigger the workflow by removing and re-adding the label
+Confirm that `FOLIO_KEYCLOAK_PLUGIN_VERSION` is identical in both Dockerfiles and that both plugin
+JARs exist in the FOLIO Maven release repository. The workflow does not consume locally built or
+SNAPSHOT plugin JARs.
 
-### Plugin compatibility issues
+### Dependent-module verification fails
 
-- Check Keycloak release notes for breaking changes
-- Review `folio-keycloak-plugins` for necessary updates
-- Consider pinning to a specific plugin version temporarily
+Open the dependent-module workflow link in the verification comment, then use its module job links.
+Fix the owning module or plugin as appropriate. After changing an image input, release the required
+plugin version, update the Keycloak PR, and run a new candidate verification. If another run in
+`applications-poc-tools` cancels this verification, rerun it for the same PR commit; the published
+candidate digest will be reused.
 
-### Test failures in applications-poc-tools
+### Gate fails after verification
 
-- Review failed module logs for specific errors
-- Check if modules need updates for Keycloak API changes
-- Coordinate with module maintainers if updates are needed
+Check that the successful candidate run used the current PR commit, or that later changes are limited
+to `README.md`, `NEWS.md`, or `docs/`. Any other later commit requires a new candidate run. If the
+latest attempt failed, rerun it successfully; the previous image comment remains visible but its
+failure status blocks the gate. Candidate verification does not add `keycloak-verified`; add it only
+after manual environment validation and the remaining runbook steps are complete.
 
 ## Rollback
 
-If issues are discovered after merging:
-
-1. Revert the Keycloak upgrade PR
-2. Revert the corresponding `applications-poc-tools` PR
-3. Investigate and fix the issue
-4. Retry the upgrade process
+If a problem is discovered after merge, revert the Keycloak upgrade and restore the last released
+Keycloak and plugin versions. Candidate images are verification artifacts and must not be treated as
+release tags.
 
 ## Related Documentation
 
-- [Keycloak Release Notes](https://www.keycloak.org/docs/latest/release_notes/)
-- [FOLIO Keycloak Plugins Repository](https://github.com/folio-org/folio-keycloak-plugins)
-- [Main README](../README.md) - General repository information
+- [FOLIO Keycloak Plugins](https://github.com/folio-org/folio-keycloak-plugins)
+- [applications-poc-tools](https://github.com/folio-org/applications-poc-tools)
+- [Repository README](../README.md)

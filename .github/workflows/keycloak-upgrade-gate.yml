@@ -4,31 +4,36 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: read
+
 jobs:
   keycloak-upgrade-gate:
-    # Only run for Keycloak PRs (with keycloak-upgrade label)
-    if: contains(github.event.pull_request.labels.*.name, 'keycloak-upgrade')
     runs-on: ubuntu-latest
 
     steps:
       - name: Check if PR updates Keycloak version
         id: check-keycloak
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
-            const { data: files } = await github.rest.pulls.listFiles({
+            const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
+              per_page: 100,
             });
 
-            const keycloakUpdate = files.some(file => {
-              if (!['Dockerfile', 'Dockerfile-fips'].includes(file.filename)) return false;
-              if (!file.patch) return false;
+            const keycloakUpdate = files.some((file) => {
+              if (!['Dockerfile', 'Dockerfile-fips'].includes(file.filename) || !file.patch) {
+                return false;
+              }
 
               return file.patch
                 .split('\n')
-                .some(line =>
+                .some((line) =>
                   /^[+-]/.test(line) &&
                   (line.includes('KEYCLOAK_VERSION') ||
                     /quay\.io\/keycloak\/keycloak:\S+/.test(line))
@@ -38,9 +43,9 @@ jobs:
             console.log(`Keycloak version update detected: ${keycloakUpdate}`);
             core.setOutput('is_keycloak_update', keycloakUpdate);
 
-      - name: Verify keycloak-verified label is present
+      - name: Verify approval and candidate status
         if: steps.check-keycloak.outputs.is_keycloak_update == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { data: pullRequest } = await github.rest.pulls.get({
@@ -49,7 +54,7 @@ jobs:
               pull_number: context.issue.number,
             });
 
-            const labels = pullRequest.labels.map(label => label.name);
+            const labels = pullRequest.labels.map((label) => label.name);
             const hasVerifiedLabel = labels.includes('keycloak-verified');
 
             console.log(`PR labels: ${labels.join(', ')}`);
@@ -62,6 +67,85 @@ jobs:
                 '`keycloak-verified` label to this PR.\n\n' +
                 'See the PR comment for detailed instructions.'
               );
-            } else {
-              console.log('PR has keycloak-verified label. Gate check passed.');
+              return;
             }
+
+            const getVerificationStatus = async (ref) => {
+              const statuses = await github.paginate(
+                github.rest.repos.listCommitStatusesForRef,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref,
+                  per_page: 100,
+                }
+              );
+              return statuses.find(
+                (status) => status.context === 'keycloak-upgrade-verification'
+              );
+            };
+
+            const currentVerification = await getVerificationStatus(pullRequest.head.sha);
+            if (currentVerification) {
+              if (currentVerification.state !== 'success') {
+                core.setFailed(
+                  'The latest candidate verification for the current PR commit failed.\n\n' +
+                  'Run `Verify Keycloak Upgrade Candidate` successfully, then retry this check.'
+                );
+                return;
+              }
+
+              console.log('The current PR commit is verified and has final human approval.');
+              return;
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const candidateComment = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.includes('<!-- keycloak-upgrade-verification -->')
+            );
+            const verifiedSha = candidateComment?.body
+              ?.match(/<!-- source-sha:([0-9a-f]{40}) -->/)?.[1];
+
+            if (!verifiedSha || (await getVerificationStatus(verifiedSha))?.state !== 'success') {
+              core.setFailed(
+                'The current PR has no successful Keycloak candidate verification.\n\n' +
+                'Run `Verify Keycloak Upgrade Candidate` for this PR, then retry this check.'
+              );
+              return;
+            }
+
+            const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              basehead: `${verifiedSha}...${pullRequest.head.sha}`,
+              per_page: 100,
+              page: 1,
+            });
+            const changedFiles = comparison.files || [];
+            const documentationOnly = comparison.status === 'ahead' &&
+              changedFiles.length > 0 &&
+              changedFiles.length < 300 &&
+              changedFiles.every((file) =>
+                file.filename === 'README.md' ||
+                file.filename === 'NEWS.md' ||
+                file.filename.startsWith('docs/')
+              );
+
+            if (!documentationOnly) {
+              core.setFailed(
+                'The PR changed after its last successful candidate verification.\n\n' +
+                'Run `Verify Keycloak Upgrade Candidate` for this PR, then retry this check.'
+              );
+              return;
+            }
+
+            console.log(
+              'Only README.md, NEWS.md, or docs/ changed after verification; ' +
+              'the verified candidate remains valid.'
+            );
