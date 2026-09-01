@@ -50,6 +50,10 @@ jobs:
         with:
           script: |
             const marker = '<!-- keycloak-upgrade-runbook -->';
+            const { owner, repo } = context.repo;
+            const repositoryUrl = `${context.serverUrl}/${owner}/${repo}`;
+            const workflowUrl = `${repositoryUrl}/actions/workflows/verify-keycloak-upgrade.yml`;
+            const branch = context.payload.pull_request.head.ref;
             const body = [
               marker,
               '## Keycloak Upgrade Runbook',
@@ -68,17 +72,31 @@ jobs:
               '',
               '#### 2. Build and verify the candidate',
               '',
-              '- [ ] Run `Verify Keycloak Upgrade Candidate` on this PR branch and confirm the ' +
-                'comment reports success. If it fails, fix the issue and run it again — the same ' +
-                'commit reuses the already-built image.',
+              '- [ ] Run the candidate verification and confirm that the **Keycloak Upgrade ' +
+                'Candidate** comment on this pull request reports `✅ Verified`. The run takes ' +
+                'about 20-45 minutes.',
+              '  - How to start it: open the **Actions** tab, pick **Verify Keycloak Upgrade ' +
+                `Candidate** in the left sidebar ([direct link](${workflowUrl})), press ` +
+                '**Run workflow** on the right, then in **Use workflow from** type to filter and ' +
+                `select \`${branch}\`, and press the green **Run workflow** button inside the ` +
+                'dropdown. You need write access to this repository; if the **Run workflow** ' +
+                'button is not shown, ask a maintainer to run it.',
+              '  - A run that failed after the image was pushed can simply be repeated, because ' +
+                'the same commit reuses the published image. A run that failed during the build ' +
+                'repeats the build.',
+              '  - The branch is missing from the list, or the workflow is missing from the ' +
+                'sidebar? This branch is older than the workflow file. Comment ' +
+                '`@dependabot recreate` on this pull request. `@dependabot rebase` is refused ' +
+                'once a pull request carries manual commits, which it does after step 1. ' +
+                '`recreate` discards manual edits, so redo the plugin version commit afterwards.',
               '- [ ] Check whether a newer `keycloak-admin-client` release exists for this Keycloak ' +
                 'major version and update `applications-poc-tools` if so. ' +
                 '([Maven Central](https://mvnrepository.com/artifact/org.keycloak/keycloak-admin-client))',
               '',
               '#### 3. Test the environment manually',
               '',
-              '- [ ] Deploy the candidate image from the verification comment (never `latest`) to ' +
-                'the test environment and confirm it works.',
+              '- [ ] Deploy the candidate image from the **Keycloak Upgrade Candidate** comment ' +
+                '(never `latest`) to the test environment and confirm it works.',
               '',
               '#### 4. Prepare release documentation',
               '',
@@ -90,7 +108,8 @@ jobs:
               '',
               '- [ ] Add `keycloak-verified` only after every preceding step is complete.',
               '',
-              'See [`docs/keycloak-upgrade.md`](https://github.com/folio-org/folio-keycloak/blob/master/docs/keycloak-upgrade.md) for the full process.',
+              `See [\`docs/keycloak-upgrade.md\`](${repositoryUrl}/blob/master/docs/keycloak-upgrade.md) ` +
+                'for the full process.',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -106,6 +125,7 @@ jobs:
 
             if (existing) {
               core.info(`Runbook comment ${existing.id} already exists; keeping checklist progress.`);
+              core.info(`Current runbook text:\n${body}`);
               return;
             }
 
