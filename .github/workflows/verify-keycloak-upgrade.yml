@@ -179,6 +179,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build FIPS image
+        id: fips
         if: steps.image.outputs.reused != 'true'
         uses: docker/build-push-action@v7
         with:
@@ -303,9 +304,11 @@ jobs:
         uses: actions/github-script@v8
         env:
           CANDIDATE_DIGEST: ${{ steps.candidate.outputs.digest }}
+          CANDIDATE_TAG: ${{ steps.image.outputs.reference }}
           DEPENDENT_FAILURE_REASON: ${{ steps.dependent-modules.outputs.failure_reason }}
           DEPENDENT_OUTCOME: ${{ steps.dependent-modules.outcome }}
           DEPENDENT_RUN_ID: ${{ steps.dependent-modules.outputs.run_id }}
+          FIPS_OUTCOME: ${{ steps.fips.outcome }}
           PULL_REQUEST_NUMBER: ${{ steps.pull-request.outputs.number }}
           SOURCE_SHA: ${{ steps.pull-request.outputs.sha }}
         with:
@@ -333,6 +336,8 @@ jobs:
                 `(${context.serverUrl}/${targetRepository}/actions/runs/${runId})`
               : null;
             const verificationSucceeded = hasDigest && outcome === 'success';
+            const DEPLOY_GUIDE_URL = 'https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/' +
+              '1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch';
 
             // Read the existing comment first: on a failed run its verified commit is carried over,
             // so the merge gate keeps the anchor it needs for documentation-only commits.
@@ -357,8 +362,11 @@ jobs:
             if (verificationSucceeded) {
               overall = '✅ Verified';
               dependentModules = `✅ passed — ${dependentRunLink}`;
+            } else if (!hasDigest && process.env.FIPS_OUTCOME === 'failure') {
+              overall = '❌ FIPS image build failed';
+              dependentModules = '⏭ not started';
             } else if (!hasDigest) {
-              overall = '❌ Candidate image not published';
+              overall = '❌ Candidate image build failed';
               dependentModules = '⏭ not started';
             } else if (outcome === 'skipped') {
               overall = '❌ Verification did not run';
@@ -383,8 +391,15 @@ jobs:
               '| --- | --- |',
               `| Overall | ${overall} |`,
               `| Commit | \`${sourceSha ? sourceSha.slice(0, 12) : 'unknown'}\` |`,
-              `| Image | ${hasDigest ? `\`${process.env.IMAGE_REPOSITORY}@${digest}\`` : 'not published'} |`,
+              `| Tag | ${hasDigest ? `\`${process.env.CANDIDATE_TAG}\`` : 'not published'} |`,
               `| Dependent modules | ${dependentModules} |`,
+              ...(verificationSucceeded
+                ? [
+                    '',
+                    'Deploy this image to a test environment for manual validation, not ' +
+                      `\`latest\`. ([How to deploy from branch](${DEPLOY_GUIDE_URL}))`,
+                  ]
+                : []),
               '',
               `[Candidate build](${workflowRunUrl})`,
             ].join('\n');

@@ -49,16 +49,13 @@ the published image, skips the build, and repeats only the dependent-module veri
 you test by hand is therefore the same image the verification passed on. A new commit always
 produces a new candidate image.
 
-The comment always shows the latest attempt. A later failed run replaces a successful report. The
-verified image is still recoverable in two places: the `Immutable candidate:` line in the job summary
-of the successful run, and the `keycloak-upgrade-verification` commit status on the verified commit.
+The comment always shows the latest attempt, so a later failed run replaces a successful report.
+The tag of a successful run stays in the job summary of that run.
 
 ### Who can run it, and what limits apply
 
 - You need write access to this repository. Without it, GitHub does not show the **Run workflow**
   button at all.
-- A person must start the run. A run started by `dependabot[bot]` gets no repository secrets, so the
-  GitHub App token step fails.
 - Only one candidate verification runs at a time, because `applications-poc-tools` also accepts one
   dispatched run at a time. A second run waits for the first one. This looks like a hang, but it is
   not.
@@ -111,13 +108,13 @@ candidate stays untouched in the registry.
 Start this step only after the released plugin version is committed to the upgrade pull request.
 
 Open the **Actions** tab, select **Verify Keycloak Upgrade Candidate**, press **Run workflow**, and
-choose the upgrade pull request branch in **Use workflow from**. The checklist comment on the pull
-request carries the same instructions.
+choose the upgrade pull request branch. The checklist comment on the pull request carries the same
+instructions.
 
 When the run finishes:
 
 - All dependent-module jobs must pass.
-- Read the **Keycloak Upgrade Candidate** comment. The digest it reports is the reference to use for
+- Read the **Keycloak Upgrade Candidate** comment. The tag it reports is the reference to use for
   manual testing. Do not substitute `latest`, and do not rebuild the image through `do-docker.yml`.
 - Check whether a newer `keycloak-admin-client` release exists for this Keycloak major version on
   [Maven Central](https://mvnrepository.com/artifact/org.keycloak/keycloak-admin-client), and
@@ -130,8 +127,7 @@ the image prints that tag.
 
 ### Step 4: Test the candidate environment manually
 
-Use the exact immutable candidate reference (`repository@sha256:...`) from the pull request comment
-to recreate the test environment. Follow
+Use the exact candidate tag from the pull request comment to recreate the test environment. Follow
 [How to deploy and test folio-kong and folio-keycloak from branch](https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch),
 substituting the candidate image where the process accepts an image reference.
 
@@ -186,7 +182,7 @@ Open the dependent-module run linked in the **Keycloak Upgrade Candidate** comme
 module job links. Fix the owning module or plugin as appropriate. After changing an image input,
 release the required plugin version, update the Keycloak pull request, and run a new candidate
 verification. If another run in `applications-poc-tools` cancels this verification, rerun it for the
-same pull request commit; the published candidate digest will be reused.
+same pull request commit; the published candidate image will be reused.
 
 ### Gate fails after verification
 
