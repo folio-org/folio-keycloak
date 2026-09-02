@@ -15,15 +15,16 @@ tested. Combinations not explicitly stated may work, but are not guaranteed.
 > Include evidence or explanations for your results to help keep the compatibility table current.  
 > _We appreciate your contributions!_
 
-| folio-keycloak | Compatible With             | Not Compatible With         |
-|----------------|-----------------------------|-----------------------------|
-| v26.7.0        | Umbrellaleaf (in dev)       |                             |
-| v26.6.0        | Trillium, Sunflower CSP 8+  |                             |
-| v26.5.x        | Sunflower CSP4+             | Sunflower CSP0-3 (TLS mode) |
-| v26.4.x        | Sunflower CSP4+             | Sunflower CSP0-3 (TLS mode) |
-| v26.3.x        | Sunflower CSP2-3            |                             |
-| v26.2.x        | Sunflower CSP1              |                             |
-| v26.1.x        | Sunflower GA, Ramsons CSP2+ |                             |
+| folio-keycloak | Compatible With                                    | Not Compatible With         |
+|----------------|----------------------------------------------------|-----------------------------|
+| v26.7.1        | Umbrellaleaf (in dev), Trillium, Sunflower CSP 8+  |                             |
+| v26.7.0        | Umbrellaleaf (in dev)                              |                             |
+| v26.6.0        | Trillium, Sunflower CSP 8+                         |                             |
+| v26.5.x        | Sunflower CSP4+                                    | Sunflower CSP0-3 (TLS mode) |
+| v26.4.x        | Sunflower CSP4+                                    | Sunflower CSP0-3 (TLS mode) |
+| v26.3.x        | Sunflower CSP2-3                                   |                             |
+| v26.2.x        | Sunflower CSP1                                     |                             |
+| v26.1.x        | Sunflower GA, Ramsons CSP2+                        |                             |
 
 ### Notes
 
