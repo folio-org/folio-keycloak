@@ -20,14 +20,13 @@ Do not merge or release `folio-keycloak` before this process is complete.
 
 ## How the automation works
 
-Four workflows take part. All of them live in `.github/workflows/`.
+Three workflows take part. All of them live in `.github/workflows/`.
 
 | Workflow | Runs when | What it does |
 | --- | --- | --- |
 | `keycloak-upgrade-instructions.yml` | Dependabot opens or updates a pull request that touches `Dockerfile` or `Dockerfile-fips` | Posts the runbook checklist comment. The comment is written once, so later pull request updates keep the boxes you have ticked. |
 | `verify-keycloak-upgrade.yml` | A person starts it by hand on the upgrade branch | Builds and publishes the candidate image, then verifies the dependent modules against it. Reports the result in one comment and in a `keycloak-upgrade-verification` commit status. |
-| `keycloak-upgrade-gate.yml` | Every pull request event, including label changes | Blocks the merge of a Keycloak upgrade until the current commit is verified and the pull request carries `keycloak-verified`. |
-| `keycloak-upgrade-reset-approval.yml` | A new commit arrives on a pull request that carries `keycloak-verified` | Removes that label. The final approval therefore always applies to the final state of the pull request. |
+| `keycloak-upgrade-gate.yml` | Every pull request event, including label changes | Reports a failing check until the current commit is verified and the pull request carries `keycloak-verified`. |
 
 ### What the candidate workflow does
 
@@ -145,8 +144,9 @@ After manual validation, with the tested Keycloak and plugin versions confirmed:
 2. Update the compatibility table in `README.md` when the supported FOLIO release range changes.
 3. Record any discovered incompatibilities rather than leaving the compatibility cell ambiguous.
 
-These commits change no image content, so they do not require another candidate run. Commit them
-before adding `keycloak-verified`: every new commit removes that label.
+These commits change no image content, so they do not require another candidate run. Any later
+commit that touches more than `README.md`, `NEWS.md`, or `docs/` invalidates the verification and
+turns `keycloak-upgrade-gate` red until a new candidate run succeeds.
 
 ### Step 6: Approve and merge
 
