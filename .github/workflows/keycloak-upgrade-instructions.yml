@@ -50,6 +50,10 @@ jobs:
         with:
           script: |
             const marker = '<!-- keycloak-upgrade-runbook -->';
+            const { owner, repo } = context.repo;
+            const repositoryUrl = `${context.serverUrl}/${owner}/${repo}`;
+            const workflowUrl = `${repositoryUrl}/actions/workflows/verify-keycloak-upgrade.yml`;
+            const branch = context.payload.pull_request.head.ref;
             const body = [
               marker,
               '## Keycloak Upgrade Runbook',
@@ -68,17 +72,20 @@ jobs:
               '',
               '#### 2. Build and verify the candidate',
               '',
-              '- [ ] Run `Verify Keycloak Upgrade Candidate` on this PR branch and confirm the ' +
-                'comment reports success. If it fails, fix the issue and run it again — the same ' +
-                'commit reuses the already-built image.',
+              `- [ ] Run **[Verify Keycloak Upgrade Candidate](${workflowUrl})** on branch ` +
+                `\`${branch}\` (Actions → Run workflow).`,
               '- [ ] Check whether a newer `keycloak-admin-client` release exists for this Keycloak ' +
                 'major version and update `applications-poc-tools` if so. ' +
                 '([Maven Central](https://mvnrepository.com/artifact/org.keycloak/keycloak-admin-client))',
               '',
+              'Trouble starting the run? See ' +
+                `[\`docs/keycloak-upgrade.md\` → Troubleshooting](${repositoryUrl}` +
+                '/blob/master/docs/keycloak-upgrade.md#troubleshooting).',
+              '',
               '#### 3. Test the environment manually',
               '',
-              '- [ ] Deploy the candidate image from the verification comment (never `latest`) to ' +
-                'the test environment and confirm it works.',
+              '- [ ] Deploy the candidate image from the **Keycloak Upgrade Candidate** comment ' +
+                '(never `latest`) to the test environment and confirm it works.',
               '',
               '#### 4. Prepare release documentation',
               '',
@@ -90,7 +97,8 @@ jobs:
               '',
               '- [ ] Add `keycloak-verified` only after every preceding step is complete.',
               '',
-              'See [`docs/keycloak-upgrade.md`](https://github.com/folio-org/folio-keycloak/blob/master/docs/keycloak-upgrade.md) for the full process.',
+              `See [\`docs/keycloak-upgrade.md\`](${repositoryUrl}/blob/master/docs/keycloak-upgrade.md) ` +
+                'for the full process.',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {

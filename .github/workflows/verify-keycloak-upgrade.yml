@@ -179,6 +179,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build FIPS image
+        id: fips
         if: steps.image.outputs.reused != 'true'
         uses: docker/build-push-action@v7
         with:
@@ -260,6 +261,7 @@ jobs:
           done
 
           if [[ -z "$run_id" ]]; then
+            echo 'failure_reason=not-found' >> "$GITHUB_OUTPUT"
             echo 'The dependent-module workflow was dispatched but its run was not found.' >&2
             exit 1
           fi
@@ -287,10 +289,12 @@ jobs:
           done
 
           if [[ -z "$conclusion" ]]; then
+            echo 'failure_reason=timeout' >> "$GITHUB_OUTPUT"
             echo 'Timed out waiting 45 minutes for dependent-module verification.' >&2
             exit 1
           fi
           if [[ "$conclusion" != 'success' ]]; then
+            echo 'failure_reason=modules' >> "$GITHUB_OUTPUT"
             echo "Dependent-module verification finished with conclusion: $conclusion" >&2
             exit 1
           fi
@@ -299,10 +303,12 @@ jobs:
         if: always()
         uses: actions/github-script@v8
         env:
-          CANDIDATE_IMAGE: ${{ steps.image.outputs.reference }}
           CANDIDATE_DIGEST: ${{ steps.candidate.outputs.digest }}
-          DEPENDENT_RUN_ID: ${{ steps.dependent-modules.outputs.run_id }}
+          CANDIDATE_TAG: ${{ steps.image.outputs.reference }}
+          DEPENDENT_FAILURE_REASON: ${{ steps.dependent-modules.outputs.failure_reason }}
           DEPENDENT_OUTCOME: ${{ steps.dependent-modules.outcome }}
+          DEPENDENT_RUN_ID: ${{ steps.dependent-modules.outputs.run_id }}
+          FIPS_OUTCOME: ${{ steps.fips.outcome }}
           PULL_REQUEST_NUMBER: ${{ steps.pull-request.outputs.number }}
           SOURCE_SHA: ${{ steps.pull-request.outputs.sha }}
         with:
@@ -315,121 +321,134 @@ jobs:
               return;
             }
 
-            const image = process.env.CANDIDATE_IMAGE || 'not published';
-            const digest = process.env.CANDIDATE_DIGEST || 'not available';
-            const runId = process.env.DEPENDENT_RUN_ID;
-            const dependentRunUrl = runId
-              ? `https://github.com/${process.env.TARGET_REPOSITORY}/actions/runs/${runId}`
-              : null;
-
-            const outcome = process.env.DEPENDENT_OUTCOME === 'success'
-              ? '✅ success'
-              : `❌ ${process.env.DEPENDENT_OUTCOME || 'not started'}`;
-            const workflowRunUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
-              `/actions/runs/${context.runId}`;
-            const sourceSha = process.env.SOURCE_SHA;
+            const { owner, repo } = context.repo;
+            const sourceSha = process.env.SOURCE_SHA || '';
+            const digest = process.env.CANDIDATE_DIGEST || '';
             const hasDigest = /^sha256:[0-9a-f]{64}$/.test(digest);
-            const immutableImage = hasDigest
-              ? `${process.env.IMAGE_REPOSITORY}@${digest}`
-              : 'not available';
-            const verificationSucceeded = hasDigest &&
-              process.env.DEPENDENT_OUTCOME === 'success';
-            const bodyLines = [
-              marker,
-              `<!-- source-sha:${sourceSha || 'unknown'} -->`,
-              '## Keycloak Upgrade Candidate Verification',
-              '',
-              `Source commit: \`${(sourceSha || 'unknown').slice(0, 12)}\``,
-              `Candidate tag: \`${image}\``,
-              `Immutable image: \`${immutableImage}\``,
-              `Dependent modules: ${outcome}`,
-              '',
-              `[Candidate workflow](${workflowRunUrl})` +
-                (dependentRunUrl ? ` · [Dependent-module workflow](${dependentRunUrl})` : ''),
-            ];
+            const outcome = process.env.DEPENDENT_OUTCOME || 'skipped';
+            const failureReason = process.env.DEPENDENT_FAILURE_REASON || '';
+            const runId = process.env.DEPENDENT_RUN_ID;
+            const targetRepository = process.env.TARGET_REPOSITORY;
+            const workflowRunUrl =
+              `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const dependentRunLink = runId
+              ? `[${targetRepository} · Verify Dependent Modules]` +
+                `(${context.serverUrl}/${targetRepository}/actions/runs/${runId})`
+              : null;
+            const verificationSucceeded = hasDigest && outcome === 'success';
+            const DEPLOY_GUIDE_URL = 'https://folio-org.atlassian.net/wiki/spaces/FOLIJET/pages/' +
+              '1351254113/How+to+deploy+and+test+folio-kong+and+folio-keycloak+from+branch';
 
-            const body = bodyLines.join('\n');
-            await core.summary.addRaw(body.replace(`${marker}\n`, '')).write();
-
+            // Read the existing comment first: on a failed run its verified commit is carried over,
+            // so the merge gate keeps the anchor it needs for documentation-only commits.
             const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               issue_number: pullNumber,
               per_page: 100,
             });
-            const attemptBody = [
-              attemptMarker,
-              `<!-- source-sha:${sourceSha || 'unknown'} -->`,
-              '## Latest Keycloak Candidate Attempt',
-              '',
-              `Source commit: \`${(sourceSha || 'unknown').slice(0, 12)}\``,
-              `Candidate: \`${immutableImage}\``,
-              `Result: ${outcome}`,
-              '',
-              `[Candidate workflow](${workflowRunUrl})` +
-                (dependentRunUrl ? ` · [Dependent-module workflow](${dependentRunUrl})` : ''),
-            ].join('\n');
-            const previousAttempt = comments.find((comment) =>
-              comment.user?.login === 'github-actions[bot]' &&
-              comment.body?.includes(attemptMarker)
-            );
-            if (previousAttempt) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: previousAttempt.id,
-                body: attemptBody,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pullNumber,
-                body: attemptBody,
-              });
-            }
-
-            if (!verificationSucceeded) {
-              if (sourceSha) {
-                await github.rest.repos.createCommitStatus({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  sha: sourceSha,
-                  state: 'failure',
-                  context: process.env.VERIFICATION_STATUS,
-                  description: 'Candidate verification did not complete successfully',
-                  target_url: workflowRunUrl,
-                });
-              }
-              return;
-            }
-
             const existing = comments.find((comment) =>
               comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)
             );
+            // `source-sha` is the marker name used before this workflow reported in one comment.
+            const previousVerifiedSha = existing?.body
+              ?.match(/<!-- (?:verified|source)-sha:([0-9a-f]{40}) -->/)?.[1];
+            const verifiedSha = verificationSucceeded ? sourceSha : previousVerifiedSha;
+
+            // Name the stage that actually failed. The dependent-module step also fails when the
+            // run cannot be dispatched or found, and when the 45-minute wait runs out.
+            let overall;
+            let dependentModules;
+            if (verificationSucceeded) {
+              overall = '✅ Verified';
+              dependentModules = `✅ passed — ${dependentRunLink}`;
+            } else if (!hasDigest && process.env.FIPS_OUTCOME === 'failure') {
+              overall = '❌ FIPS image build failed';
+              dependentModules = '⏭ not started';
+            } else if (!hasDigest) {
+              overall = '❌ Candidate image build failed';
+              dependentModules = '⏭ not started';
+            } else if (outcome === 'skipped') {
+              overall = '❌ Verification did not run';
+              dependentModules = '⏭ not started';
+            } else if (failureReason === 'timeout') {
+              overall = '❌ Timed out waiting for dependent modules';
+              dependentModules = `⏳ still running — ${dependentRunLink}`;
+            } else if (!runId || failureReason === 'not-found') {
+              overall = '❌ Could not start dependent-module run';
+              dependentModules = '⏭ not started';
+            } else {
+              overall = '❌ Dependent modules failed';
+              dependentModules = `❌ ${outcome} — ${dependentRunLink}`;
+            }
+
+            const body = [
+              marker,
+              ...(verifiedSha ? [`<!-- verified-sha:${verifiedSha} -->`] : []),
+              '## Keycloak Upgrade Candidate',
+              '',
+              '| Check | Result |',
+              '| --- | --- |',
+              `| Overall | ${overall} |`,
+              `| Commit | \`${sourceSha ? sourceSha.slice(0, 12) : 'unknown'}\` |`,
+              `| Tag | ${hasDigest ? `\`${process.env.CANDIDATE_TAG}\`` : 'not published'} |`,
+              `| Dependent modules | ${dependentModules} |`,
+              ...(verificationSucceeded
+                ? [
+                    '',
+                    'Deploy this image to a test environment for manual validation, not ' +
+                      `\`latest\`. ([How to deploy from branch](${DEPLOY_GUIDE_URL}))`,
+                  ]
+                : []),
+              '',
+              `[Candidate build](${workflowRunUrl})`,
+            ].join('\n');
+
+            await core.summary.addRaw(body.replace(/^<!--.*-->\n/gm, '')).write();
+
             if (existing) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 comment_id: existing.id,
                 body,
               });
             } else {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 issue_number: pullNumber,
                 body,
               });
             }
 
+            // Remove the separate attempt comment left by the earlier two-comment report.
+            const attempt = comments.find((comment) =>
+              comment.user?.login === 'github-actions[bot]' && comment.body?.includes(attemptMarker)
+            );
+            if (attempt) {
+              try {
+                await github.rest.issues.deleteComment({ owner, repo, comment_id: attempt.id });
+              } catch (error) {
+                core.warning(
+                  `Could not delete the obsolete attempt comment ${attempt.id}: ${error.message}. ` +
+                  'Delete it manually once; this pull request now shows two comments.'
+                );
+              }
+            }
+
+            if (!sourceSha) {
+              return;
+            }
             await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               sha: sourceSha,
-              state: 'success',
+              state: verificationSucceeded ? 'success' : 'failure',
               context: process.env.VERIFICATION_STATUS,
-              description: 'Candidate image and dependent modules verified',
+              description: verificationSucceeded
+                ? 'Candidate image and dependent modules verified'
+                : 'Candidate verification did not complete successfully',
               target_url: workflowRunUrl,
             });
 

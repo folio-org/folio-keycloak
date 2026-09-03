@@ -109,8 +109,9 @@ jobs:
               comment.user?.login === 'github-actions[bot]' &&
               comment.body?.includes('<!-- keycloak-upgrade-verification -->')
             );
+            // `source-sha` is the marker name used before the workflow reported in one comment.
             const verifiedSha = candidateComment?.body
-              ?.match(/<!-- source-sha:([0-9a-f]{40}) -->/)?.[1];
+              ?.match(/<!-- (?:verified|source)-sha:([0-9a-f]{40}) -->/)?.[1];
 
             if (!verifiedSha || (await getVerificationStatus(verifiedSha))?.state !== 'success') {
               core.setFailed(
