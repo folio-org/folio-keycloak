@@ -21,11 +21,12 @@
                             autofocus
                             autocomplete="off"
                             aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
+                            aria-describedby="<#if messagesPerField.existsError('username','password')>input-error</#if>"
                             required
                         />
 
                         <#if messagesPerField.existsError('username','password')>
-                            <span id="input-error" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
+                            <span id="input-error" class="${properties.kcInputErrorMessageClass!}" aria-live="polite" role="status">
                                     ${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}
                             </span>
                         </#if>
