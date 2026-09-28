@@ -47,7 +47,7 @@
         <header class="${properties.kcFormHeaderClass!}">
             <div class="${properties.kcLogoBlock!}">
                 <div class="${properties.kcLogoImageWrapper}">
-                <img src="${properties.baseLogoFilesURL}/${realm.name}/logo.png" alt="${realm.name}"/>
+                <img src="${properties.baseLogoFilesURL}/${realm.name}/logo.png" alt="${realm.displayName}"/>
                 </div>
             </div>
             <#if realm.internationalizationEnabled  && locale.supported?size gt 1>
