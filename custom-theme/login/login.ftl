@@ -27,7 +27,7 @@
                         />
 
                         <#if messagesPerField.existsError('username','password')>
-                            <span id="input-error" class="${properties.kcInputErrorMessageClass!}" aria-live="polite" role="status">
+                            <span id="input-error" class="${properties.kcInputErrorMessageClass!}" role="status">
                                     ${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}
                             </span>
                         </#if>
