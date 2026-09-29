@@ -1,0 +1,345 @@
+{
+  "_disclaimer": "Default values are calibrated against a reference bugfest environment. See ADR-0013 (Module configuration management) for the governance model behind this file. Resource values and JAVA_OPTS heap limits reflect a dedicated Keycloak ECS task and must be adjusted to the target host capacity.",
+  "description": "folio-keycloak configuration template",
+  "moduleDefaults": {
+    "resources": [
+      {
+        "name": "cpu",
+        "value": "1536",
+        "description": "CPU request/limit for the Keycloak container"
+      },
+      {
+        "name": "memory",
+        "value": "2750",
+        "description": "Memory hard limit for the Keycloak container in MiB"
+      },
+      {
+        "name": "memoryReservation",
+        "value": "2250",
+        "description": "Memory reservation (soft limit) for the Keycloak container in MiB"
+      }
+    ],
+    "deployment": {
+      "isHaSupported": true,
+      "replicasRecommendedCount": 2,
+      "description": "Keycloak uses the embedded jdbc-ping Infinispan cluster stack for distributed cache synchronization. HA requires at least two replicas for cache redundancy; CACHE_OWNERS_COUNT=2 ensures each cache entry is replicated to a second node so a single-node loss does not cause cache data loss."
+    },
+    "EnvVars": [
+      {
+        "name": "KC_DB",
+        "value": "postgres",
+        "description": "Database vendor; postgres is the only backend supported by the built image.",
+        "type": "DB",
+        "essential": false
+      },
+      {
+        "name": "KC_DB_URL_HOST",
+        "value": null,
+        "description": "Hostname of the PostgreSQL instance serving the Keycloak database.",
+        "type": "DB",
+        "essential": true
+      },
+      {
+        "name": "KC_DB_URL_PORT",
+        "value": "5432",
+        "description": "TCP port of the PostgreSQL instance.",
+        "type": "DB",
+        "essential": false
+      },
+      {
+        "name": "KC_DB_URL_DATABASE",
+        "value": "keycloak",
+        "description": "Name of the PostgreSQL database used by Keycloak.",
+        "type": "DB",
+        "essential": false
+      },
+      {
+        "name": "KC_DB_USERNAME",
+        "value": null,
+        "description": "Username for the Keycloak database connection.",
+        "type": "DB",
+        "essential": true
+      },
+      {
+        "name": "KC_DB_PASSWORD",
+        "value": null,
+        "description": "Password for the Keycloak database connection.",
+        "type": "DB",
+        "essential": true
+      },
+      {
+        "name": "KEYCLOAK_ADMIN",
+        "value": "admin",
+        "description": "Username of the Keycloak bootstrap admin account created on first startup.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KEYCLOAK_ADMIN_PASSWORD",
+        "value": null,
+        "description": "Password for the Keycloak bootstrap admin account.",
+        "type": "CONFIG",
+        "essential": true
+      },
+      {
+        "name": "KC_FOLIO_BE_ADMIN_CLIENT_ID",
+        "value": "folio-backend-admin-client",
+        "description": "Client ID of the FOLIO backend admin OAuth2 client created in the master realm by configure-realms.sh.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_FOLIO_BE_ADMIN_CLIENT_SECRET",
+        "value": null,
+        "description": "Client secret for the FOLIO backend admin OAuth2 client; the container refuses to start without it.",
+        "type": "CONFIG",
+        "essential": true
+      },
+      {
+        "name": "KC_BOOTSTRAP_ADMIN_USERNAME",
+        "value": "admin",
+        "description": "Admin username configure-realms.sh uses to authenticate against the Keycloak Admin REST API during bootstrap.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_BOOTSTRAP_ADMIN_PASSWORD",
+        "value": "admin",
+        "description": "Admin password configure-realms.sh uses during bootstrap; falls back to KEYCLOAK_ADMIN_PASSWORD when unset.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_URL",
+        "value": "http://localhost:8080",
+        "description": "Base URL configure-realms.sh uses to reach the local Keycloak Admin REST API.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_HOSTNAME",
+        "value": null,
+        "description": "Public-facing hostname Keycloak advertises in tokens, redirects, and well-known endpoints. Required when KC_HOSTNAME_STRICT is true.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_HOSTNAME_STRICT",
+        "value": "true",
+        "description": "When true, Keycloak rejects requests whose Host header does not match KC_HOSTNAME.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_HOSTNAME_BACKCHANNEL_DYNAMIC",
+        "value": "false",
+        "description": "When true, Keycloak derives the backchannel URL from the incoming request rather than KC_HOSTNAME; useful in dynamic-IP cluster environments.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_PROXY",
+        "value": "edge",
+        "description": "Reverse-proxy mode (deprecated in Keycloak 26; superseded by KC_PROXY_HEADERS). edge instructs Keycloak to trust X-Forwarded-* headers from a TLS-terminating proxy.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_PROXY_HEADERS",
+        "value": "xforwarded",
+        "description": "Header set forwarded by the reverse proxy. xforwarded enables parsing of X-Forwarded-For, X-Forwarded-Proto, and X-Forwarded-Host.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_HTTP_ENABLED",
+        "value": "false",
+        "description": "Enables the plain-HTTP listener. Must be true when the container sits behind a TLS-terminating reverse proxy.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_HTTPS_KEY_STORE_TYPE",
+        "value": "BCFKS",
+        "description": "Keystore format for the server TLS certificate. BCFKS is the BouncyCastle FIPS keystore format used by the image.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_HTTPS_KEY_STORE_FILE",
+        "value": "/opt/keycloak/conf/test.server.keystore",
+        "description": "Path to the keystore file used for the HTTPS listener.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_HTTPS_KEY_STORE_PASSWORD",
+        "value": "SecretPassword",
+        "description": "Password to unlock the HTTPS keystore. Replace the default with a secure value in all deployments.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KCADM_HTTPS_TRUST_STORE_TYPE",
+        "value": "BCFKS",
+        "description": "Truststore format used by kcadm.sh when connecting to Keycloak over HTTPS.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KCADM_HTTPS_TRUST_STORE",
+        "value": "/opt/keycloak/conf/test.server.truststore",
+        "description": "Path to the truststore file used by kcadm.sh for TLS peer verification.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KCADM_HTTPS_TRUST_STORE_PASSWORD",
+        "value": "SecretPassword",
+        "description": "Password to unlock the kcadm truststore. Replace the default with a secure value in all deployments.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_LOG_LEVEL",
+        "value": "INFO",
+        "description": "Root log level for Keycloak. Accepts a comma-separated list of category:LEVEL pairs, e.g. INFO,org.keycloak.events:DEBUG.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_HEALTH_ENABLED",
+        "value": "true",
+        "description": "Exposes /health, /health/live, and /health/ready endpoints used by container orchestrators for readiness and liveness probes.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_METRICS_ENABLED",
+        "value": "true",
+        "description": "Exposes Prometheus-compatible metrics at /metrics.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK",
+        "value": "true",
+        "description": "Allows token introspection when the requesting client is not listed in the token audience. Required for FOLIO compatibility; must remain true.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_USERINFO_WITH_LIGHTWEIGHT_ACCESS_TOKEN",
+        "value": "true",
+        "description": "Allows the UserInfo endpoint to accept lightweight access tokens. Required for FOLIO lightweight-token support; must remain true.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_SPI_BRUTE_FORCE_PROTECTOR__DEFAULT_BRUTE_FORCE_DETECTOR__ALLOW_CONCURRENT_REQUESTS",
+        "value": "true",
+        "description": "Permits concurrent authentication requests per user without triggering brute-force lockout. Recommended for high-concurrency environments.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "CONFIG_FILE",
+        "value": "config.json",
+        "description": "Name of the FOLIO configuration JSON file loaded by the container at startup.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "JAVA_OPTS",
+        "value": "-Xms768m -Xmx1536m",
+        "description": "JVM flags passed to the Keycloak process. Controls initial and maximum heap size; tune together with the container memory limit.",
+        "type": "CONFIG",
+        "essential": false
+      },
+      {
+        "name": "KC_CACHE_EMBEDDED_AUTHORIZATION_MAX_COUNT",
+        "value": "80000",
+        "description": "Maximum number of authorization objects held in the embedded Infinispan cache. Increase for large numbers of clients or policies.",
+        "type": "CACHE",
+        "essential": false
+      },
+      {
+        "name": "KC_CACHE_EMBEDDED_OFFLINE_SESSIONS_MAX_COUNT",
+        "value": "100000",
+        "description": "Maximum number of offline user sessions held in the embedded Infinispan cache.",
+        "type": "CACHE",
+        "essential": false
+      },
+      {
+        "name": "KC_CACHE_EMBEDDED_OFFLINE_CLIENT_SESSIONS_MAX_COUNT",
+        "value": "100000",
+        "description": "Maximum number of offline client sessions held in the embedded Infinispan cache.",
+        "type": "CACHE",
+        "essential": false
+      },
+      {
+        "name": "KC_CACHE_EMBEDDED_REALMS_MAX_COUNT",
+        "value": "300000",
+        "description": "Maximum number of realm objects held in the embedded Infinispan cache. Set higher for multi-tenant deployments with many realms.",
+        "type": "CACHE",
+        "essential": false
+      },
+      {
+        "name": "KC_CACHE_EMBEDDED_USERS_MAX_COUNT",
+        "value": "50000",
+        "description": "Maximum number of user objects held in the embedded Infinispan cache.",
+        "type": "CACHE",
+        "essential": false
+      },
+      {
+        "name": "KC_CACHE_METRICS_HISTOGRAMS_ENABLED",
+        "value": "false",
+        "description": "Enables histogram metrics for the embedded Infinispan cache; adds latency distribution data to the /metrics output.",
+        "type": "CACHE",
+        "essential": false
+      },
+      {
+        "name": "CACHE_OWNERS_COUNT",
+        "value": "2",
+        "description": "Number of Infinispan cluster nodes that hold a replica of each cache entry. Set to 2 or more to survive a single-node loss in HA deployments.",
+        "type": "CACHE",
+        "essential": false
+      },
+      {
+        "name": "KC_RUN_MODE",
+        "value": "prod",
+        "description": "Startup mode: prod runs start --optimized (pre-built image); dev runs start-dev without production hardening, suitable for local development only.",
+        "type": "FUNCTIONAL",
+        "essential": false
+      },
+      {
+        "name": "FIPS",
+        "value": "false",
+        "description": "When true, switches the container entrypoint to start-fips.sh, enabling FIPS 140-2 compliant cryptography via BouncyCastle.",
+        "type": "FUNCTIONAL",
+        "essential": false
+      },
+      {
+        "name": "IS_EUREKA",
+        "value": "true",
+        "description": "Signals to the FOLIO Keycloak SPI plugins that this instance is running within the FOLIO Eureka platform.",
+        "type": "FUNCTIONAL",
+        "essential": false
+      },
+      {
+        "name": "PLATFORM",
+        "value": "eureka",
+        "description": "Identifies the FOLIO platform variant consumed by the FOLIO Keycloak SPI plugins for platform-specific behaviour.",
+        "type": "FUNCTIONAL",
+        "essential": false
+      },
+      {
+        "name": "KAFKA_PRODUCER_TENANT_COLLECTION",
+        "value": "ALL",
+        "description": "Determines which tenants the Kafka producer publishes tenant-lifecycle events to. ALL sends to every entitled tenant.",
+        "type": "KAFKA",
+        "essential": false
+      }
+    ]
+  }
+}
