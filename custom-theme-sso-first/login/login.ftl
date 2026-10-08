@@ -9,7 +9,7 @@
             <form id="kc-form-login" onsubmit="login.disabled = true; return true;" action="${url.loginAction}" method="post">
                 <#if !usernameHidden??>
                     <div class="${properties.kcFormGroupClass!}">
-                        <label for="username" class="${properties.kcLabelClass!}"><#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if></label>
+                        <label for="username" class="${properties.kcLabelClass!}"><#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if> <span aria-hidden>*</span></label>
 
                         <input
                             tabindex="1"
@@ -21,11 +21,13 @@
                             autofocus
                             autocomplete="off"
                             aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
+                            aria-describedby="<#if messagesPerField.existsError('username','password')>input-error</#if>"
                             required
+                            aria-required="true"
                         />
 
                         <#if messagesPerField.existsError('username','password')>
-                            <span id="input-error" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">
+                            <span id="input-error" class="${properties.kcInputErrorMessageClass!}" role="status">
                                     ${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}
                             </span>
                         </#if>
@@ -34,7 +36,7 @@
                 </#if>
 
                 <div class="${properties.kcFormGroupClass!}">
-                    <label for="password" class="${properties.kcLabelClass!}">${msg("password")}</label>
+                    <label for="password" class="${properties.kcLabelClass!}">${msg("password")} <span aria-hidden>*</span></label>
 
                     <input
                         tabindex="2"
@@ -45,6 +47,7 @@
                         autocomplete="off"
                         aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>"
                         required
+                        aria-required="true"
                     />
 
                     <#if usernameHidden?? && messagesPerField.existsError('username','password')>

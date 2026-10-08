@@ -10,6 +10,7 @@
 ## Version `v26.7.1
 * Add Verify Keycloak Upgrade Candidate workflow to build and verify Keycloak upgrade candidates automatically, and require a successful run for the current commit before keycloak-upgrade-gate allows merge
 * Update to Keycloak 26.7.3 and folio-keycloak-plugin to 26.7.2
+* Add DeployConfig.json to folio-keycloak (ADR-0013 Configuration Management) ([KEYCLOAK-133](https://folio-org.atlassian.net/browse/KEYCLOAK-133))
 
 ## Version `v26.7.0` (28.07.2026)
 * Update to Keycloak 26.7.0 and folio-keycloak-plugin to 26.7.0 (KEYCLOAK-124)
