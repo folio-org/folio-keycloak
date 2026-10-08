@@ -1,5 +1,13 @@
 # Release Notes
-## Version `v26.7.1` (in progress)
+## Version v26.8.0 (in progress)
+* Update to Keycloak 26.8.0 and folio-keycloak-plugin to 26.8.0 (KEYCLOAK-136)
+* All Login Layouts : Landmark aria issues (KEYCLOAK-131)
+* All Layouts | Login - FOLIO Logo has poor alt text (KEYCLOAK-127)
+* Verification - All Login Layouts - Indicate that username and password fields are required  (KEYCLOAK-130)
+* All Login Layouts | Verify that login error message is announced by screenreader (KEYCLOAK-129)
+* Add DeployConfig.json to folio-keycloak (ADR-0013 Configuration Management) (KEYCLOAK-133)
+
+## Version `v26.7.1
 * Add Verify Keycloak Upgrade Candidate workflow to build and verify Keycloak upgrade candidates automatically, and require a successful run for the current commit before keycloak-upgrade-gate allows merge
 * Update to Keycloak 26.7.3 and folio-keycloak-plugin to 26.7.2
 
