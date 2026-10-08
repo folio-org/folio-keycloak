@@ -17,6 +17,7 @@ tested. Combinations not explicitly stated may work, but are not guaranteed.
 
 | folio-keycloak | Compatible With                                    | Not Compatible With         |
 |----------------|----------------------------------------------------|-----------------------------|
+| v26.8.0        | Umbrellaleaf (in dev), Trillium, Sunflower CSP 8+  |                             |
 | v26.7.1        | Umbrellaleaf (in dev), Trillium, Sunflower CSP 8+  |                             |
 | v26.7.0        | Umbrellaleaf (in dev)                              |                             |
 | v26.6.0        | Trillium, Sunflower CSP 8+                         |                             |
