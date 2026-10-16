@@ -1,4 +1,6 @@
 # Release Notes
+## Version v26.8.0 (in progress)
+
 ## Version v26.8.0 (16.10.2026)
 * Update to Keycloak 26.8.0 and folio-keycloak-plugin to 26.8.0 (KEYCLOAK-136)
 * All Login Layouts : Landmark aria issues (KEYCLOAK-131)
