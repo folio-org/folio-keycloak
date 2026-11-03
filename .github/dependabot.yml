@@ -10,6 +10,12 @@ updates:
     # Only allow updates to the Keycloak base image
     allow:
       - dependency-name: "keycloak/keycloak"
+    # Keycloak re-publishes a release as X.Y.Z-N tags (OS CVE respins). Cooldown keeps only
+    # the highest tag, which hides the plain X.Y.Z release with the same digest. Excluding
+    # the image from cooldown lets Dependabot pick the plain X.Y.Z release tag.
+    cooldown:
+      exclude:
+        - "keycloak/keycloak"
     labels:
       - "keycloak-upgrade"
     commit-message:
