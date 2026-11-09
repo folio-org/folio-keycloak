@@ -3,6 +3,7 @@
 clientId="$1"
 clientSecret="$2"
 script="setup-admin-client.sh"
+adminApiScope="kc-admin-api"
 
 # Logging function
 log_info() {
@@ -37,6 +38,31 @@ setup_realm_roles_mapper() {
 EOF
 )
     log_info "Realm roles mapper created [id: $mapperId]"
+}
+
+# Assign the built-in admin API client scope: since Keycloak 26.8.2 the Admin REST API
+# rejects tokens without its audience and scope
+setup_admin_api_scope() {
+    local clientUuid="$1"
+    local clientId="$2"
+
+    if /opt/keycloak/bin/kcadm.sh get clients/"$clientUuid"/default-client-scopes \
+        --fields name --format csv --noquotes 2>/dev/null | grep -qx "$adminApiScope"; then
+        log_info "Client scope '$adminApiScope' already assigned to '$clientId'"
+        return
+    fi
+
+    local scopeId
+    scopeId=$(/opt/keycloak/bin/kcadm.sh get client-scopes --fields id,name --format csv --noquotes \
+        | grep ",$adminApiScope$" | cut -d, -f1)
+    if [ -z "$scopeId" ]; then
+        log_info "ERROR: Client scope '$adminApiScope' not found in master realm"
+        exit 1
+    fi
+
+    /opt/keycloak/bin/kcadm.sh update clients/"$clientUuid"/default-client-scopes/"$scopeId" \
+        --target-realm master
+    log_info "Client scope '$adminApiScope' assigned to '$clientId'"
 }
 
 enable_lightweight_tokens() {
@@ -100,6 +126,7 @@ if [ "$foundClient" != "$clientId" ]; then
         &>/dev/null
 
     setup_realm_roles_mapper "$clientUuid"
+    setup_admin_api_scope "$clientUuid" "$clientId"
 
     log_info "Admin client '$clientId' has been created successfully"
 else
@@ -112,4 +139,5 @@ else
     fi
 
     enable_lightweight_tokens "$clientUuid" "$clientId"
+    setup_admin_api_scope "$clientUuid" "$clientId"
 fi
