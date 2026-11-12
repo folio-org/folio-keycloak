@@ -17,6 +17,7 @@ tested. Combinations not explicitly stated may work, but are not guaranteed.
 
 | folio-keycloak | Compatible With                                    | Not Compatible With         |
 |----------------|----------------------------------------------------|-----------------------------|
+| v26.8.1        | Umbrellaleaf (in dev), Trillium, Sunflower CSP 8+  |                             |
 | v26.8.0        | Umbrellaleaf (in dev), Trillium, Sunflower CSP 8+  |                             |
 | v26.7.1        | Umbrellaleaf (in dev), Trillium, Sunflower CSP 8+  |                             |
 | v26.7.0        | Umbrellaleaf (in dev)                              |                             |
@@ -124,7 +125,9 @@ initialization.
 - Enables lightweight access tokens for the client
 - Configures realm roles protocol mapper with lightweight claim support
 - Assigns admin and create-realm roles to the service account
-- For existing clients: enables lightweight tokens and adds missing mappers if needed
+- Assigns the built-in `kc-admin-api` client scope as a default scope; since Keycloak 26.8.2 the Admin REST API
+  rejects tokens without it
+- For existing clients: enables lightweight tokens, adds missing mappers and the `kc-admin-api` scope if needed
 - Idempotent - safe to run multiple times without side effects
 
 ## Migrate Existing Realms to Lightweight Tokens
