@@ -1,5 +1,5 @@
 # Release Notes
-## Version v26.8.1 (in progress)
+## Version v26.8.1 (23.11.2026)
 * Update to Keycloak 26.8.2 and folio-keycloak-plugin to 26.8.2 (KEYCLOAK-137)
   - Upgrade note: a rolling upgrade is not supported. Stop all Keycloak nodes and start the new version together (recreate deployment): Keycloak 26.8.2 adds a client registration policy and an Admin API audience check that older nodes do not know.
 * Update folio-keycloak-plugin to 26.8.3: no "Restart login" link after a failed login of a member tenant user (KEYCLOAK-140)
